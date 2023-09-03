@@ -1,5 +1,5 @@
 # WisBlock Goes Blues
-| <img src="./assets/RAK-Whirls.png" alt="RAKWireless"> | <img src="./assets/rakstar.jpg" alt="RAKstar" > | <img src="./assets/BluesLogoMark.png" alt="Blues" width="200%" height="200%" style="background-color:white"> |    
+| <img src="./assets/RAK-Whirls.png" alt="RAKWireless"> | <img src="./assets/rakstar.jpg" alt="RAKstar" > | <img src="./assets/blues_logo.jpg" alt="Blues" width="200%" height="200%" style="background-color:white"> |    
 | :-: | :-: | :-: | 
 
 ----
@@ -50,7 +50,7 @@ Option two is to setup the device with AT commands directly through the WisBlock
 
 Connect the RAK13102 NoteCarriers USB to your computer (WisBlock has to be powered separate!) and use the [Blues Quickstart](https://dev.blues.io/quickstart/)↗️
 
-### OPtion two, setup through AT commands     
+### Option two, setup through AT commands     
 
 #### ⚠️ IMPORTANT ⚠️        
 If setting up the NoteCard through AT commands, these settings will always override settings that are stored in the NoteCard.    
@@ -191,10 +191,10 @@ For the location visualization, only the Datacake solution is explained here. If
 ----
 
 ## Blues Notehub 
-The notes send to the Blues Notehub can be seen in the _**Events**_ listing of the Nothub
+The notes sent to the Blues Notehub can be seen in the _**Events**_ listing of the Nothub
 <center><img src="./assets/Notehub-Event-Log.png" alt="Notehub Events Log"></center>
 
-As the location and sensor data is sent as binary payload, so there is nothing to see here in the body field.    
+The location and sensor data is sent as binary payload, so there is nothing to see here in the body field.    
 
 Next step is to create the _**Route**_ in NoteHub that forwards the data to Datacake.    
 Instead of the default URL for the Datacake route, we use the URL for LoRaWAN devices (read on below why we do this).   
