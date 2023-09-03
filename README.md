@@ -31,7 +31,7 @@ The code in this repository supports beside of the communication to the Blues No
 | Blues NoteCard | Cellular modem | [Choose one for your region](https://shop.blues.io/collections/notecard?_gl=1*1ikl0yz*_ga*MTA3NTk4Nzc2My4xNjg5NzI0NjI3*_ga_PJ7RGMWWBX*MTY5MzY0NjI5NS4xMzguMS4xNjkzNjQ2OTg2LjU2LjAuMA..&_ga=2.90751256.308929740.1693641831-1075987763.1689724627) ↗️ |
 | RAK4631 | MCU & LoRa transceiver | [RAK4630](https://store.rakwireless.com/products/rak4631-lpwan-node) ↗️ |
 | RAK13102 | WisBlock NoteCarrier for Blues NoteCard | [RAK13102](https://store.rakwireless.com/collections/wisblock-wireless) ↗️ |
-| RAK906 (optional) | Temperature and humidity sensor | [RAK906](https://store.rakwireless.com/products/rak1906-bme680-environment-sensor) ↗️ |
+| RAK1906 (optional) | Temperature and humidity sensor | [RAK1906](https://store.rakwireless.com/products/rak1906-bme680-environment-sensor) ↗️ |
 
 <center><img src="./assets/hardware.jpg" alt="RAKstar"  width="50%" height="50%"><img src="./assets/hardware_2.jpg" alt="RAKstar"  width="50%" height="50%"><img src="./assets/hardware_3.jpg" alt="RAKstar"  width="50%" height="50%"></center>
 
