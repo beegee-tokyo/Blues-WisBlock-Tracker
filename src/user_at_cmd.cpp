@@ -155,7 +155,7 @@ int at_query_blues_ext_sim(void)
 	}
 	else
 	{
-		snprintf(g_at_query_buf, ATQUERY_SIZE, "0", g_blues_settings.conn_continous ? "1" : "0");
+		snprintf(g_at_query_buf, ATQUERY_SIZE, "0");
 		MYLOG("USR_AT", "Using eSIM");
 	}
 	return AT_SUCCESS;
@@ -164,12 +164,45 @@ int at_query_blues_ext_sim(void)
 /**
  * @brief Set Blues NoteCard mode
  *       /// \todo work in progress
- * 
- * @param str 
- * @return int 
+ *
+ * @param str params as string, format 0 or 1
+ * @return int
+ * 			AT_SUCCESS is params are set correct
+ * 			AT_ERRNO_PARA_NUM if params error
  */
 int at_set_blues_mode(char *str)
 {
+	bool new_connection_mode;
+
+	if (str[0] == '0')
+	{
+		MYLOG("USR_AT", "Set minimum connection mode");
+		new_connection_mode = false;
+		blues_disable_attn();
+	}
+	else if (str[0] == '1')
+	{
+		MYLOG("USR_AT", "Set continuous connection mode");
+		new_connection_mode = true;
+		blues_enable_attn();
+	}
+	else
+	{
+		MYLOG("USR_AT", "Invalid motion trigger flag %d", str[0]);
+		return AT_ERRNO_PARA_NUM;
+	}
+
+	bool need_save = false;
+	if (new_connection_mode != g_blues_settings.conn_continous)
+	{
+		g_blues_settings.conn_continous = new_connection_mode;
+		need_save = true;
+	}
+
+	if (need_save)
+	{
+		save_blues_settings();
+	}
 	return AT_SUCCESS;
 }
 
@@ -185,20 +218,68 @@ int at_query_blues_mode(void)
 	return AT_SUCCESS;
 }
 
+/**
+ * @brief Enable/disable the motion trigger
+ *
+ * @param str params as string, format 0 or 1
+ * @return int
+ * 			AT_SUCCESS is params are set correct
+ * 			AT_ERRNO_PARA_NUM if params error
+ */
 int at_set_blues_trigger(char *str)
 {
+	bool new_motion_trigger;
+
+	if (str[0] == '0')
+	{
+		MYLOG("USR_AT", "Disable motion trigger");
+		new_motion_trigger = false;
+		blues_disable_attn();
+	}
+	else if (str[0] == '1')
+	{
+		MYLOG("USR_AT", "Enable motion trigger");
+		new_motion_trigger = true;
+		blues_enable_attn();
+	}
+	else
+	{
+		MYLOG("USR_AT", "Invalid motion trigger flag %d", str[0]);
+		return AT_ERRNO_PARA_NUM;
+	}
+
+	bool need_save = false;
+	if (new_motion_trigger != g_blues_settings.motion_trigger)
+	{
+		g_blues_settings.motion_trigger = new_motion_trigger;
+		need_save = true;
+	}
+
+	if (need_save)
+	{
+		save_blues_settings();
+	}
 	return AT_SUCCESS;
 }
 
 /**
- * @brief Get Blues mode settings
+ * @brief Get Blues motion trigger settings
  *
  * @return int AT_SUCCESS
  */
 int at_query_blues_trigger(void)
 {
-	snprintf(g_at_query_buf, ATQUERY_SIZE, "%s", g_blues_settings.conn_continous ? "1" : "0");
-	MYLOG("USR_AT", "Using %s connection", g_blues_settings.conn_continous ? "continous" : "periodic");
+	snprintf(g_at_query_buf, ATQUERY_SIZE, "%s", g_blues_settings.motion_trigger ? "1" : "0");
+	MYLOG("USR_AT", "Motion trigger is %s", g_blues_settings.motion_trigger ? "enabled" : "disabled");
+	return AT_SUCCESS;
+}
+
+static int at_reset_blues_settings(void)
+{
+	if (InternalFS.exists(blues_file_name))
+	{
+		InternalFS.remove(blues_file_name);
+	}
 	return AT_SUCCESS;
 }
 
@@ -206,7 +287,7 @@ int at_query_blues_trigger(void)
  * @brief Read saved Blues Product ID
  *
  */
-void read_blues_settings(void)
+bool read_blues_settings(void)
 {
 	bool structure_valid = false;
 	if (InternalFS.exists(blues_file_name))
@@ -237,15 +318,19 @@ void read_blues_settings(void)
 
 	if (!structure_valid)
 	{
-		// No settings file found
-		g_blues_settings.valid_mark = 0xAA55;										// Validity marker
-		sprintf(g_blues_settings.product_uid, "com.my-company.my-name:my-project"); // Blues Product UID
-		g_blues_settings.conn_continous = false;									// Use periodic connection
-		g_blues_settings.use_ext_sim = false;										// Use external SIM
-		sprintf(g_blues_settings.ext_sim_apn, "-");									// APN to be used with external SIM
-		g_blues_settings.motion_trigger = true;										// Send data on motion trigger
-		save_blues_settings();
+		return false;
+
+		// No settings file found optional to set defaults (ommitted!)
+		// g_blues_settings.valid_mark = 0xAA55;										// Validity marker
+		// sprintf(g_blues_settings.product_uid, "com.my-company.my-name:my-project"); // Blues Product UID
+		// g_blues_settings.conn_continous = false;									// Use periodic connection
+		// g_blues_settings.use_ext_sim = false;										// Use external SIM
+		// sprintf(g_blues_settings.ext_sim_apn, "-");									// APN to be used with external SIM
+		// g_blues_settings.motion_trigger = true;										// Send data on motion trigger
+		// save_blues_settings();
 	}
+
+	return true;
 }
 
 /**
@@ -275,8 +360,9 @@ atcmd_t g_user_at_cmd_new_list[] = {
 	// Module commands
 	{"+BUID", "Set/get the Blues product UID", at_query_blues_prod_uid, at_set_blues_prod_uid, NULL, "RW"},
 	{"+BSIM", "Set/get Blues SIM settings", at_query_blues_ext_sim, at_set_blues_ext_sim, NULL, "RW"},
-	// {"+BMOD", "Set/get Blues NoteCard modes", at_query_blues_mode, at_set_blues_mode, NULL, "RW"},
-	// {"+BTRIG", "Set/get Blues send trigger", at_query_blues_trigger, at_set_blues_trigger, NULL, "RW"},
+	{"+BMOD", "Set/get Blues NoteCard connection modes", at_query_blues_mode, at_set_blues_mode, NULL, "RW"},
+	{"+BTRIG", "Set/get Blues send trigger", at_query_blues_trigger, at_set_blues_trigger, NULL, "RW"},
+	{"+BR", "Remove all Blues Settings", NULL, NULL, at_reset_blues_settings, "RW"},
 };
 
 /** Number of user defined AT commands */

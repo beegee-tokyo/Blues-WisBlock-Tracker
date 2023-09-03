@@ -99,6 +99,19 @@ bool init_app(void)
 	restart_advertising(30);
 
 	delayed_sending.begin(15000, delayed_cellular, NULL, false);
+
+	// Start the send interval timer and send a first message
+	if (!g_lorawan_settings.auto_join)
+	{
+		MYLOG("APP", "Initialize LoRaWAN stack, but do not join");
+		if (g_lorawan_settings.lorawan_enable)
+		{
+			API_LOG("API", "Auto join is enabled, start LoRaWAN and join");
+			init_lorawan();
+		}
+		api_timer_start();
+		api_wake_loop(STATUS);
+	}
 	return true;
 }
 
@@ -165,7 +178,7 @@ void app_event_handler(void)
 						// Send over cellular connection
 						delayed_sending.start();
 						check_rejoin = true;
-						send_fail ++;
+						send_fail++;
 						MYLOG("APP", "LoRa transceiver is busy");
 						AT_PRINTF("+EVT:BUSY\n");
 					}
@@ -178,7 +191,7 @@ void app_event_handler(void)
 						// Send over cellular connection
 						delayed_sending.start();
 						check_rejoin = true;
-						send_fail ++;
+						send_fail++;
 						AT_PRINTF("+EVT:SIZE_ERROR\n");
 						MYLOG("APP", "Packet error, too big to send with current DR");
 					}
@@ -241,7 +254,11 @@ void app_event_handler(void)
 		blues_hub_status();
 
 		g_solution_data.addDevID(0, &g_lorawan_settings.node_device_eui[4]);
-		blues_parse_send(g_solution_data.getBuffer(), g_solution_data.getSize());
+		blues_send_payload(g_solution_data.getBuffer(), g_solution_data.getSize());
+
+		// Request sync with NoteHub
+		blues_start_req("hub.sync");
+		blues_send_req();
 	}
 
 	// Blues ATTN event
@@ -310,10 +327,6 @@ void lora_data_handler(void)
 		else
 		{
 			MYLOG("APP", "Join network failed");
-
-			// Just start the send interval timer and send a first message
-			api_timer_start();
-			api_wake_loop(STATUS);
 		}
 	}
 

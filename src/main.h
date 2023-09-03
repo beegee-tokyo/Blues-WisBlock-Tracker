@@ -76,9 +76,6 @@ void lora_data_handler(void);
 // Globals
 extern WisCayenne g_solution_data;
 
-// Parser
-bool blues_parse_send(uint8_t *data, uint16_t data_len);
-
 // Blues.io
 struct s_blues_settings
 {
@@ -96,12 +93,14 @@ bool blues_send_req(void);
 void blues_hub_status(void);
 bool blues_get_location(void);
 bool blues_enable_attn(void);
+bool blues_disable_attn(void);
+bool blues_send_payload(uint8_t *data, uint16_t data_len);
 extern J *req;
 extern s_blues_settings g_blues_settings;
 
 // User AT commands
 void init_user_at(void);
-void read_blues_settings(void);
+bool read_blues_settings(void);
 void save_blues_settings(void);
 
 #endif // _MAIN_H_

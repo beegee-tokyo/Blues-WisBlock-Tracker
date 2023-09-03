@@ -197,80 +197,30 @@ function lppDecode(bytes) {
 
 }
 
-function get_device_name(device, value) {
-	return device + "_" + value;
-}
-
 function Decoder(request, fPort) {
 
 	var decoded = {};
-	var device;
-	var data_type;
-	try {
-		// Decode from payload
-		var data = JSON.parse(request.body);
-		data_type = 0; // Cellular
-	}
-	catch (err) {
-		data_type = 1; // LoRaWAN
-	}
 
+	console.log('Found LoRaWAN object');
 
-	if (data_type === 1) {
-		console.log('Found LoRaWAN object');
-
-		if (fPort != 5) {
-			return;
-		}
-		decoded.isLoRaWAN = true;
-		decoded.source = 'LoRaWAN';
-
-		// Decode from LoRaWAN payload
-		lppDecode(request, 1).forEach(function (field) {
-			if ((field['type'] == 101) || (field['type'] == 103) || (field['type'] == 104) || (field['type'] == 115)) {
-				decoded[field['name']] = field['value'];
-				decoded[field['name'] + '_' + field['channel']] = field['value'];
-			}
-			else {
-				decoded[field['name'] + '_' + field['channel']] = field['value'];
-			}
-		});
-	}
-
-	if (data_type === 0) {
-		console.log('Found Cellular object');
-		console.log('device' + data.device);
-		var bytes = __base64decode(data.payload); // Cellular payload
-		console.log('decode ==> ' + bytes);
-
+	if (fPort === 6) {
 		decoded.isLoRaWAN = false;
 		decoded.source = 'Cellular';
-		decoded.sensor = data.body.node_id;
-		device = data.device;
-
-		var bytes = __base64decode(data.payload);
-		console.log('decode ==> ' + bytes);
-
-		lppDecode(bytes, 1).forEach(function (field) {
-			if ((field['type'] == 101) || (field['type'] == 103) || (field['type'] == 104) || (field['type'] == 115)) {
-				decoded[field['name']] = field['value'];
-				decoded[field['name'] + '_' + field['channel']] = field['value'];
-			}
-			else {
-				decoded[field['name'] + '_' + field['channel']] = field['value'];
-			}
-		});
-
-
-		if (("tower_lat" in data) && ("tower_lon" in data)) {
-			console.log('Found Tower Location');
-			decoded.tower_location = "(" + data.tower_lat.toFixed(6) + "," + data.tower_lon.toFixed(6) + ")";
-		}
-		if (("best_lat" in data) && ("best_lon" in data)) {
-			console.log('Found Best Location');
-			decoded.device_location = "(" + data.best_lat.toFixed(6) + "," + data.best_lon.toFixed(6) + ")";
-		}
+	} else {
+		decoded.isLoRaWAN = true;
+		decoded.source = 'LoRaWAN';
 	}
+
+	// Decode from LoRaWAN payload
+	lppDecode(request, 1).forEach(function (field) {
+		if ((field['type'] == 101) || (field['type'] == 103) || (field['type'] == 104) || (field['type'] == 115)) {
+			decoded[field['name']] = field['value'];
+			decoded[field['name'] + '_' + field['channel']] = field['value'];
+		}
+		else {
+			decoded[field['name'] + '_' + field['channel']] = field['value'];
+		}
+	});
 
 	// Array where we store the fields that are being sent to Datacake
 	var datacakeFields = []
@@ -278,7 +228,7 @@ function Decoder(request, fPort) {
 	// take each field from decoded and convert them to Datacake format
 	for (var key in decoded) {
 		if (decoded.hasOwnProperty(key)) {
-			datacakeFields.push({ field: key.toUpperCase(), value: decoded[key], device: device })
+			datacakeFields.push({ field: key.toUpperCase(), value: decoded[key] })
 		}
 	}
 

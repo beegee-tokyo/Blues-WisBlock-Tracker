@@ -33,136 +33,210 @@ bool init_blues(void)
 	notecard.begin();
 
 	// Get the ProductUID from the saved settings
-	read_blues_settings();
-
-	if (memcmp(g_blues_settings.product_uid, "com.my-company.my-name", 22) == 0)
+	// If no settings are found, use NoteCard internal settings!
+	if (read_blues_settings())
 	{
-		MYLOG("BLUES", "No Product ID saved");
-		AT_PRINTF(":EVT NO PUID");
-		memcpy(g_blues_settings.product_uid, PRODUCT_UID, 33);
-	}
-
-	MYLOG("BLUES", "Set Product ID and connection mode");
-	req = notecard.newRequest("hub.set");
-
-	JAddStringToObject(req, "product", g_blues_settings.product_uid);
-	if (g_blues_settings.conn_continous)
-	{
-		JAddStringToObject(req, "mode", "continuous");
-	}
-	else
-	{
-		JAddStringToObject(req, "mode", "periodic");
-	}
-
-	// JAddNumberToObject(req, "seconds", 300);
-	// Set sync time to 20 times the sensor read time
-	JAddNumberToObject(req, "seconds", (g_lorawan_settings.send_repeat_time * 20 / 1000));
-	JAddBoolToObject(req, "heartbeat", true);
-
-	if (!blues_send_req())
-	{
-		MYLOG("BLUES", "hub.set request failed");
-		return false;
-	}
-
-#if USE_GNSS == 1
-	MYLOG("BLUES", "Set location mode");
-	req = notecard.newRequest("card.location.mode");
-
-	// Continous GNSS mode
-	// JAddStringToObject(req, "mode", "continous");
-
-	// Periodic GNSS mode
-	JAddStringToObject(req, "mode", "periodic");
-
-	// Set location acquisition time to the sensor read time
-	JAddNumberToObject(req, "seconds", (g_lorawan_settings.send_repeat_time / 2000));
-	JAddBoolToObject(req, "heartbeat", true);
-	if (!blues_send_req())
-	{
-		MYLOG("BLUES", "card.location.mode request failed");
-		return false;
-	}
-
-	MYLOG("BLUES", "Enable location triangulation");
-	req = notecard.newRequest("card.triangulate");
-
-	JAddStringToObject(req, "mode", "cell");
-	if (!blues_send_req())
-	{
-		MYLOG("BLUES", "card.triangulate request failed");
-		return false;
-	}
-
-	if (g_blues_settings.motion_trigger)
-	{
-		pinMode(WB_IO5, INPUT);
-
-		req = notecard.newRequest("card.attn");
-
-		JAddStringToObject(req, "mode", "disarm");
-		if (!blues_send_req())
+		MYLOG("BLUES", "Found saved settings, override NoteCard internal settings!");
+		if (memcmp(g_blues_settings.product_uid, "com.my-company.my-name", 22) == 0)
 		{
-			MYLOG("BLUES", "card.attn request failed");
+			MYLOG("BLUES", "No Product ID saved");
+			AT_PRINTF(":EVT NO PUID");
+			memcpy(g_blues_settings.product_uid, PRODUCT_UID, 33);
 		}
 
-		if (!blues_enable_attn())
+		MYLOG("BLUES", "Set Product ID and connection mode");
+		if (blues_start_req("hub.set"))
 		{
+			JAddStringToObject(req, "product", g_blues_settings.product_uid);
+			if (g_blues_settings.conn_continous)
+			{
+				JAddStringToObject(req, "mode", "continuous");
+			}
+			else
+			{
+				JAddStringToObject(req, "mode", "minimum");
+			}
+			// Set sync time to 20 times the sensor read time
+			JAddNumberToObject(req, "seconds", (g_lorawan_settings.send_repeat_time * 20 / 1000));
+			JAddBoolToObject(req, "heartbeat", true);
+
+			if (!blues_send_req())
+			{
+				MYLOG("BLUES", "hub.set request failed");
+				return false;
+			}
+		}
+		else
+		{
+			MYLOG("BLUES", "hub.set request failed");
 			return false;
 		}
-	}
+
+#if USE_GNSS == 1
+		MYLOG("BLUES", "Set location mode");
+		if (blues_start_req("card.location.mode"))
+		{
+			// Continous GNSS mode
+			// JAddStringToObject(req, "mode", "continous");
+
+			// Periodic GNSS mode
+			JAddStringToObject(req, "mode", "periodic");
+
+			// Set location acquisition time to the sensor read time
+			JAddNumberToObject(req, "seconds", (g_lorawan_settings.send_repeat_time / 2000));
+			JAddBoolToObject(req, "heartbeat", true);
+			if (!blues_send_req())
+			{
+				MYLOG("BLUES", "card.location.mode request failed");
+				return false;
+			}
+		}
+		else
+		{
+			MYLOG("BLUES", "card.location.mode request failed");
+			return false;
+		}
+#else
+		MYLOG("BLUES", "Stop location mode");
+		if (blues_start_req("card.location.mode"))
+		{
+			// GNSS mode off
+			JAddStringToObject(req, "mode", "off");
+			if (!blues_send_req())
+			{
+				MYLOG("BLUES", "card.location.mode request failed");
+				return false;
+			}
+		}
+		else
+		{
+			MYLOG("BLUES", "card.location.mode request failed");
+			return false;
+		}
 #endif
 
-	/*************************************************/
-	/* If the Notecard is properly setup, there is   */
-	/* need to setup the APN and card mode on every  */
-	/* restart! It will reuse the APN and mode that  */
-	/* was originally setup.                         */
-	/*************************************************/
-	MYLOG("BLUES", "Set APN");
-	// {“req”:”card.wireless”}
-	req = notecard.newRequest("card.wireless");
-	JAddStringToObject(req, "mode", "auto");
+		pinMode(WB_IO5, INPUT);
+		if (g_blues_settings.motion_trigger)
+		{
+			if (blues_start_req("card.attn"))
+			{
+				JAddStringToObject(req, "mode", "disarm");
+				if (!blues_send_req())
+				{
+					MYLOG("BLUES", "card.attn request failed");
+				}
 
-	if (g_blues_settings.use_ext_sim)
-	{
-		// USING EXTERNAL SIM CARD
-		JAddStringToObject(req, "apn", g_blues_settings.ext_sim_apn);
-		JAddStringToObject(req, "method", "secondary");
-	}
-	else
-	{
-		// USING BLUES eSIM CARD
-		JAddStringToObject(req, "method", "primary");
-	}
-	if (!blues_send_req())
-	{
-		MYLOG("BLUES", "card.wireless request failed");
-		return false;
-	}
+				if (!blues_enable_attn())
+				{
+					return false;
+				}
+			}
+		}
+		else
+		{
+			MYLOG("BLUES", "card.attn request failed");
+			return false;
+		}
+
+		MYLOG("BLUES", "Set APN");
+		// {“req”:”card.wireless”}
+		if (blues_start_req("card.wireless"))
+		{
+			JAddStringToObject(req, "mode", "auto");
+
+			if (g_blues_settings.use_ext_sim)
+			{
+				// USING EXTERNAL SIM CARD
+				JAddStringToObject(req, "apn", g_blues_settings.ext_sim_apn);
+				JAddStringToObject(req, "method", "secondary");
+			}
+			else
+			{
+				// USING BLUES eSIM CARD
+				JAddStringToObject(req, "method", "primary");
+			}
+			if (!blues_send_req())
+			{
+				MYLOG("BLUES", "card.wireless request failed");
+				return false;
+			}
+		}
+		else
+		{
+			MYLOG("BLUES", "card.wireless request failed");
+			return false;
+		}
 
 #if IS_V2 == 1
-	// Only for V2 cards, setup the WiFi network
-	MYLOG("BLUES", "Set WiFi");
-	req = notecard.newRequest("card.wifi");
+		// Only for V2 cards, setup the WiFi network
+		MYLOG("BLUES", "Set WiFi");
+		if (blues_start_req("card.wifi"))
+		{
+			JAddStringToObject(req, "ssid", "-");
+			JAddStringToObject(req, "password", "-");
+			JAddStringToObject(req, "name", "RAK-");
+			JAddStringToObject(req, "org", "RAK-PH");
+			JAddBoolToObject(req, "start", false);
 
-	JAddStringToObject(req, "ssid", "-");
-	JAddStringToObject(req, "password", "-");
-	JAddStringToObject(req, "name", "RAK-");
-	JAddStringToObject(req, "org", "RAK-PH");
-	JAddBoolToObject(req, "start", false);
-
-	if (!blues_send_req())
-	{
-		MYLOG("BLUES", "card.wifi request failed");
-	}
+			if (!blues_send_req())
+			{
+				MYLOG("BLUES", "card.wifi request failed");
+			}
+		}
+		else
+		{
+			MYLOG("BLUES", "card.wifi request failed");
+			return false;
+		}
 #endif
-	/*************************************************/
-	/* End of code block to be removed               */
-	/*************************************************/
+	}
 
+	// {"req": "card.version"}
+	if (blues_start_req("card.version"))
+	{
+		if (!blues_send_req())
+		{
+			MYLOG("BLUES", "card.version request failed");
+		}
+	}
 	return true;
+}
+
+bool blues_send_payload(uint8_t *data, uint16_t data_len)
+{
+	if (blues_start_req("note.add"))
+	{
+		JAddStringToObject(req, "file", "data.qo");
+		JAddBoolToObject(req, "sync", true);
+		J *body = JCreateObject();
+		if (body != NULL)
+		{
+			char node_id[24];
+			sprintf(node_id, "%02x%02x%02x%02x%02x%02x%02x%02x",
+					g_lorawan_settings.node_device_eui[0], g_lorawan_settings.node_device_eui[1],
+					g_lorawan_settings.node_device_eui[2], g_lorawan_settings.node_device_eui[3],
+					g_lorawan_settings.node_device_eui[4], g_lorawan_settings.node_device_eui[5],
+					g_lorawan_settings.node_device_eui[6], g_lorawan_settings.node_device_eui[7]);
+			JAddStringToObject(body, "dev_eui", node_id);
+
+			JAddItemToObject(req, "body", body);
+
+			JAddBinaryToObject(req, "payload", data, data_len);
+
+			MYLOG("PARSE", "Finished parsing");
+			if (!blues_send_req())
+			{
+				MYLOG("PARSE", "Send request failed");
+				return false;
+			}
+			return true;
+		}
+		else
+		{
+			MYLOG("PARSE", "Error creating body");
+		}
+	}
+	return false;
 }
 
 /**
@@ -307,10 +381,17 @@ bool blues_get_location(void)
 	// Clear last GPS location
 	if (blues_start_req("card.location.mode"))
 	{
-		notecard.sendRequest(req);
 		JAddBoolToObject(req, "delete", true);
+		J *rsp;
+		rsp = notecard.requestAndResponse(req);
+		if (rsp == NULL)
+		{
+			MYLOG("BLUES", "card.location.mode");
+		}
+		char *json = JPrintUnformatted(rsp);
+		MYLOG("BLUES", "Card response = %s", json);
+		notecard.deleteResponse(rsp);
 	}
-
 	return result;
 }
 
@@ -324,25 +405,74 @@ bool blues_get_location(void)
 bool blues_enable_attn(void)
 {
 	MYLOG("BLUES", "Enable ATTN on motion");
-	req = notecard.newRequest("card.attn");
-
-	JAddStringToObject(req, "mode", "motion");
-	if (!blues_send_req())
+	if (blues_start_req("card.attn"))
 	{
-		MYLOG("BLUES", "card.attn request failed");
-		return false;
+		JAddStringToObject(req, "mode", "motion");
+		if (!blues_send_req())
+		{
+			MYLOG("BLUES", "card.attn request failed");
+			return false;
+		}
+	}
+	else
+	{
+		MYLOG("BLUES", "Request creation failed");
 	}
 	attachInterrupt(WB_IO5, blues_attn_cb, RISING);
 
 	MYLOG("BLUES", "Arm ATTN on motion");
-	req = notecard.newRequest("card.attn");
-
-	JAddStringToObject(req, "mode", "arm");
-	if (!blues_send_req())
+	if (blues_start_req("card.attn"))
 	{
-		MYLOG("BLUES", "card.attn request failed");
-		return false;
+		JAddStringToObject(req, "mode", "arm");
+		if (!blues_send_req())
+		{
+			MYLOG("BLUES", "card.attn request failed");
+			return false;
+		}
 	}
+	else
+	{
+		MYLOG("BLUES", "Request creation failed");
+	}
+	return true;
+}
+
+/**
+ * @brief Disable ATTN interrupt
+ *
+ * @return true if ATTN could be disabled
+ * @return false if ATTN could not be disabled
+ */
+bool blues_disable_attn(void)
+{
+	MYLOG("BLUES", "Disable ATTN on motion");
+	detachInterrupt(WB_IO5);
+
+	if (blues_start_req("card.attn"))
+	{
+		JAddStringToObject(req, "mode", "disarm");
+		if (!blues_send_req())
+		{
+			MYLOG("BLUES", "card.attn request failed");
+		}
+	}
+	else
+	{
+		MYLOG("BLUES", "Request creation failed");
+	}
+	if (blues_start_req("card.attn"))
+	{
+		JAddStringToObject(req, "mode", "-motion");
+		if (!blues_send_req())
+		{
+			MYLOG("BLUES", "card.attn request failed");
+		}
+	}
+	else
+	{
+		MYLOG("BLUES", "Request creation failed");
+	}
+
 	return true;
 }
 
