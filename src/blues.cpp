@@ -115,28 +115,29 @@ bool init_blues(void)
 		}
 #endif
 
-		pinMode(WB_IO5, INPUT);
-		if (g_blues_settings.motion_trigger)
-		{
-			if (blues_start_req("card.attn"))
-			{
-				JAddStringToObject(req, "mode", "disarm");
-				if (!blues_send_req())
-				{
-					MYLOG("BLUES", "card.attn request failed");
-				}
+		/// \todo reset attn signal needs rework
+		// pinMode(WB_IO5, INPUT);
+		// if (g_blues_settings.motion_trigger)
+		// {
+		// 	if (blues_start_req("card.attn"))
+		// 	{
+		// 		JAddStringToObject(req, "mode", "disarm");
+		// 		if (!blues_send_req())
+		// 		{
+		// 			MYLOG("BLUES", "card.attn request failed");
+		// 		}
 
-				if (!blues_enable_attn())
-				{
-					return false;
-				}
-			}
-		}
-		else
-		{
-			MYLOG("BLUES", "card.attn request failed");
-			return false;
-		}
+		// 		if (!blues_enable_attn())
+		// 		{
+		// 			return false;
+		// 		}
+		// 	}
+		// }
+		// else
+		// {
+		// 	MYLOG("BLUES", "card.attn request failed");
+		// 	return false;
+		// }
 
 		MYLOG("BLUES", "Set APN");
 		// {“req”:”card.wireless”}
@@ -148,7 +149,7 @@ bool init_blues(void)
 			{
 				// USING EXTERNAL SIM CARD
 				JAddStringToObject(req, "apn", g_blues_settings.ext_sim_apn);
-				JAddStringToObject(req, "method", "secondary");
+				JAddStringToObject(req, "method", "dual-secondary-primary");
 			}
 			else
 			{
@@ -202,6 +203,14 @@ bool init_blues(void)
 	return true;
 }
 
+/**
+ * @brief Send a data packet to NoteHub.IO
+ * 
+ * @param data Payload as byte array (CayenneLPP formatted)
+ * @param data_len Length of payload
+ * @return true if note could be sent to NoteCard
+ * @return false if note send failed
+ */
 bool blues_send_payload(uint8_t *data, uint16_t data_len)
 {
 	if (blues_start_req("note.add"))

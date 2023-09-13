@@ -20,6 +20,7 @@ static const char blues_file_name[] = "BLUES";
 /** File to save battery check status */
 File this_file(InternalFS);
 
+/** Structure for saved Blues Notecard settings */
 s_blues_settings g_blues_settings;
 
 /**
