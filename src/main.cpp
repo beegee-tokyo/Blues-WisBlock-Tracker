@@ -369,6 +369,11 @@ void lora_data_handler(void)
 	}
 }
 
+/**
+ * @brief Timer callback to decouple the LoRaWAN sending and the cellular sending
+ * 
+ * @param unused 
+ */
 void delayed_cellular(TimerHandle_t unused)
 {
 	api_wake_loop(USE_CELLULAR);
