@@ -275,12 +275,29 @@ int at_query_blues_trigger(void)
 	return AT_SUCCESS;
 }
 
+/**
+ * @brief Reset saved NoteCard settings
+ *
+ * @return int AT_SUCCESS
+ */
 static int at_reset_blues_settings(void)
 {
 	if (InternalFS.exists(blues_file_name))
 	{
 		InternalFS.remove(blues_file_name);
 	}
+	return AT_SUCCESS;
+}
+
+/**
+ * @brief Get NoteCard connection information
+ *
+ * @return int AT_SUCCESS
+ */
+int at_blues_status(void)
+{
+	blues_hub_status();
+	snprintf(g_at_query_buf, ATQUERY_SIZE, "%s", blues_response);
 	return AT_SUCCESS;
 }
 
@@ -364,6 +381,7 @@ atcmd_t g_user_at_cmd_new_list[] = {
 	{"+BMOD", "Set/get Blues NoteCard connection modes", at_query_blues_mode, at_set_blues_mode, NULL, "RW"},
 	{"+BTRIG", "Set/get Blues send trigger", at_query_blues_trigger, at_set_blues_trigger, NULL, "RW"},
 	{"+BR", "Remove all Blues Settings", NULL, NULL, at_reset_blues_settings, "RW"},
+	{"+BLUES", "Blues Notecard Status", at_blues_status, NULL, NULL, "RW"},
 };
 
 /** Number of user defined AT commands */

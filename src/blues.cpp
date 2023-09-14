@@ -15,11 +15,17 @@
 #endif
 #define myProductID PRODUCT_UID
 
+/** Notecard instance */
 Notecard notecard;
 
+/** Callback for ATTN signal */
 void blues_attn_cb(void);
 
+/** JSON request to NoteCard */
 J *req;
+
+/** Buffer for response (if used beside of debug output) */
+char blues_response[1024];
 
 /**
  * @brief Initialize Blues NoteCard
@@ -276,6 +282,7 @@ bool blues_send_req(void)
 	char *json = JPrintUnformatted(req);
 	MYLOG("BLUES", "Card request = %s", json);
 
+	sprintf(blues_response,"Req failed");
 	J *rsp;
 	rsp = notecard.requestAndResponse(req);
 	if (rsp == NULL)
@@ -283,6 +290,8 @@ bool blues_send_req(void)
 		return false;
 	}
 	json = JPrintUnformatted(rsp);
+	JPrintPreallocated(rsp, blues_response, 1024, false);
+
 	if (JIsPresent(rsp, "err"))
 	{
 		MYLOG("BLUES", "Card error response = %s", json);
@@ -301,10 +310,9 @@ bool blues_send_req(void)
  */
 void blues_hub_status(void)
 {
-	blues_start_req("hub.status");
-	if (!blues_send_req())
+	if (blues_start_req("hub.status"))
 	{
-		MYLOG("BLUES", "hub.status request failed");
+		blues_send_req();
 	}
 }
 

@@ -97,6 +97,7 @@ bool blues_disable_attn(void);
 bool blues_send_payload(uint8_t *data, uint16_t data_len);
 extern J *req;
 extern s_blues_settings g_blues_settings;
+extern char blues_response[];
 
 // User AT commands
 void init_user_at(void);
