@@ -109,9 +109,12 @@ bool init_app(void)
 			API_LOG("API", "Auto join is enabled, start LoRaWAN and join");
 			init_lorawan();
 		}
-		api_timer_start();
-		api_wake_loop(STATUS);
 	}
+
+	// Don't wait for join to start the application timer
+	api_timer_start();
+	api_wake_loop(STATUS);
+
 	return true;
 }
 
@@ -240,6 +243,7 @@ void app_event_handler(void)
 				MYLOG("APP", "Retry to join LNS");
 				send_fail = 0;
 				// int8_t init_result = re_init_lorawan();
+				g_lpwan_has_joined = false;
 				lmh_join();
 			}
 		}
@@ -259,6 +263,22 @@ void app_event_handler(void)
 		// Request sync with NoteHub
 		blues_start_req("hub.sync");
 		blues_send_req();
+
+		if (!g_lpwan_has_joined)
+		{
+			send_fail++;
+			MYLOG("APP", "Cellular count w/o Join %d", send_fail);
+		}
+		// Check how many times we send over cellular data and retry to join LNS after 10 times failing
+		if ((send_fail >= 10) && g_lorawan_settings.lorawan_enable)
+		{
+			// Try to rejoin
+			MYLOG("APP", "Retry to join LNS");
+			send_fail = 0;
+			// int8_t init_result = re_init_lorawan();
+			g_lpwan_has_joined = false;
+			lmh_join();
+		}
 	}
 
 	// Blues ATTN event
@@ -361,6 +381,7 @@ void lora_data_handler(void)
 
 			// Increase fail send counter
 			send_fail++;
+			MYLOG("APP", "NAK count %d", send_fail);
 		}
 		else
 		{

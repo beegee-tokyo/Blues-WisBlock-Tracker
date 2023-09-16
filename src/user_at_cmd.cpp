@@ -369,6 +369,30 @@ void save_blues_settings(void)
 	MYLOG("USR_AT", "Saved Blues Settings");
 }
 
+int at_blues_req(char *str)
+{
+	for (int i = 0; str[i] != '\0'; i++)
+	{
+		if (str[i] >= 'A' && str[i] <= 'Z') // checking for uppercase characters
+			str[i] = str[i] + 32;			// converting uppercase to lowercase
+	}
+
+	if (!blues_start_req(str))
+	{
+		snprintf(g_at_query_buf, ATQUERY_SIZE, "Request creation failed");
+		return AT_ERRNO_EXEC_FAIL;
+	}
+	
+	if (!blues_send_req())
+	{
+		snprintf(g_at_query_buf, ATQUERY_SIZE, "Send request failed");
+		return AT_ERRNO_EXEC_FAIL;
+	}
+	// Copy response for AT response
+	snprintf(g_at_query_buf, ATQUERY_SIZE, "%s", blues_response);
+	return AT_SUCCESS;
+}
+
 /**
  * @brief List of all available commands with short help and pointer to functions
  *
@@ -380,8 +404,9 @@ atcmd_t g_user_at_cmd_new_list[] = {
 	{"+BSIM", "Set/get Blues SIM settings", at_query_blues_ext_sim, at_set_blues_ext_sim, NULL, "RW"},
 	{"+BMOD", "Set/get Blues NoteCard connection modes", at_query_blues_mode, at_set_blues_mode, NULL, "RW"},
 	{"+BTRIG", "Set/get Blues send trigger", at_query_blues_trigger, at_set_blues_trigger, NULL, "RW"},
-	{"+BR", "Remove all Blues Settings", NULL, NULL, at_reset_blues_settings, "RW"},
-	{"+BLUES", "Blues Notecard Status", at_blues_status, NULL, NULL, "RW"},
+	{"+BR", "Remove all Blues Settings", NULL, NULL, at_reset_blues_settings, "W"},
+	{"+BLUES", "Blues Notecard Status", at_blues_status, NULL, NULL, "R"},
+	{"+BREQ", "Send a Blues Notecard Request", NULL, at_blues_req, NULL, "W"},
 };
 
 /** Number of user defined AT commands */

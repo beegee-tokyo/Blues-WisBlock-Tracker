@@ -9,6 +9,7 @@
  *
  */
 #include "main.h"
+#include <NoteTime.h>
 
 #ifndef PRODUCT_UID
 #define PRODUCT_UID "com.my-company.my-name:my-project"
@@ -25,7 +26,20 @@ void blues_attn_cb(void);
 J *req;
 
 /** Buffer for response (if used beside of debug output) */
-char blues_response[1024];
+char blues_response[8192];
+
+uint8_t fixed_req[8192] = {0};
+
+void *fixed_alloc(size_t size)
+{
+	return (void *) fixed_req;
+}
+
+/** Flag to avoid multiple note requests sent to the NoteCard */
+bool request_active = false;
+
+/** Semaphore used block new requests to the NoteCard */
+SemaphoreHandle_t g_blues_sem = NULL;
 
 /**
  * @brief Initialize Blues NoteCard
@@ -35,8 +49,15 @@ char blues_response[1024];
  */
 bool init_blues(void)
 {
+	// Create the task event semaphore
+	g_blues_sem = xSemaphoreCreateBinary();
+	// Initialize semaphore
+	xSemaphoreGive(g_blues_sem);
+
 	Wire.begin();
 	notecard.begin();
+
+	NoteSetFnDefault(fixed_alloc, NULL, noteDelay, noteMillis);
 
 	// Get the ProductUID from the saved settings
 	// If no settings are found, use NoteCard internal settings!
@@ -211,7 +232,7 @@ bool init_blues(void)
 
 /**
  * @brief Send a data packet to NoteHub.IO
- * 
+ *
  * @param data Payload as byte array (CayenneLPP formatted)
  * @param data_len Length of payload
  * @return true if note could be sent to NoteCard
@@ -238,17 +259,18 @@ bool blues_send_payload(uint8_t *data, uint16_t data_len)
 
 			JAddBinaryToObject(req, "payload", data, data_len);
 
-			MYLOG("PARSE", "Finished parsing");
+			MYLOG("BLUES", "Finished parsing");
 			if (!blues_send_req())
 			{
-				MYLOG("PARSE", "Send request failed");
+				MYLOG("PABLUESRSE", "Send request failed");
 				return false;
 			}
 			return true;
 		}
 		else
 		{
-			MYLOG("PARSE", "Error creating body");
+			request_active = false;
+			MYLOG("BLUES", "Error creating body");
 		}
 	}
 	return false;
@@ -263,11 +285,20 @@ bool blues_send_payload(uint8_t *data, uint16_t data_len)
  */
 bool blues_start_req(String request_name)
 {
+	if (request_active)
+	{
+		MYLOG("BLUES", "A request already exists");
+		return false;
+	}
+
 	req = notecard.newRequest(request_name.c_str());
 	if (req != NULL)
 	{
+		request_active = true;
 		return true;
 	}
+	MYLOG("BLUES", "Create request failed");
+
 	return false;
 }
 
@@ -282,9 +313,13 @@ bool blues_send_req(void)
 	char *json = JPrintUnformatted(req);
 	MYLOG("BLUES", "Card request = %s", json);
 
-	sprintf(blues_response,"Req failed");
+	sprintf(blues_response, "Req failed");
 	J *rsp;
 	rsp = notecard.requestAndResponse(req);
+
+	// Mark request as finished
+	request_active = false;
+
 	if (rsp == NULL)
 	{
 		return false;
@@ -332,6 +367,7 @@ bool blues_get_location(void)
 		if (rsp == NULL)
 		{
 			MYLOG("BLUES", "card.location failed, report no location");
+			request_active = false;
 			return false;
 		}
 		char *json = JPrintUnformatted(rsp);
@@ -356,6 +392,11 @@ bool blues_get_location(void)
 		}
 
 		notecard.deleteResponse(rsp);
+		request_active = false;
+	}
+	else
+	{
+		MYLOG("BLUES", "card.location request failed");
 	}
 
 	if (!result)
@@ -368,6 +409,7 @@ bool blues_get_location(void)
 			if (rsp == NULL)
 			{
 				MYLOG("BLUES", "card.time failed, report no location");
+				request_active = false;
 				return false;
 			}
 			char *json = JPrintUnformatted(rsp);
@@ -392,6 +434,7 @@ bool blues_get_location(void)
 			}
 
 			notecard.deleteResponse(rsp);
+			request_active = false;
 		}
 	}
 
@@ -408,6 +451,8 @@ bool blues_get_location(void)
 		char *json = JPrintUnformatted(rsp);
 		MYLOG("BLUES", "Card response = %s", json);
 		notecard.deleteResponse(rsp);
+
+		request_active = false;
 	}
 	return result;
 }
