@@ -28,18 +28,38 @@ J *req;
 /** Buffer for response (if used beside of debug output) */
 char blues_response[8192];
 
+/** Buffer for request */
 uint8_t fixed_req[8192] = {0};
 
+/**
+ * @brief Replace malloc with a fixed buffer address return
+ * 
+ * @param size unused
+ * @return void* pointer to pre-allocated buffer
+ */
 void *fixed_alloc(size_t size)
 {
+	if (size >= 8192)
+	{
+		MYLOG("BLUES","Requested %d bytes", size);
+		return (void *)NULL;
+	}
 	return (void *) fixed_req;
+}
+
+/**
+ * @brief Replace free with a clean of the fixed buffer
+ * 
+ * @param ptr unused
+ */
+void fixed_free(void * ptr)
+{
+	memset(fixed_req,0,8182);
+	return;
 }
 
 /** Flag to avoid multiple note requests sent to the NoteCard */
 bool request_active = false;
-
-/** Semaphore used block new requests to the NoteCard */
-SemaphoreHandle_t g_blues_sem = NULL;
 
 /**
  * @brief Initialize Blues NoteCard
@@ -49,15 +69,12 @@ SemaphoreHandle_t g_blues_sem = NULL;
  */
 bool init_blues(void)
 {
-	// Create the task event semaphore
-	g_blues_sem = xSemaphoreCreateBinary();
-	// Initialize semaphore
-	xSemaphoreGive(g_blues_sem);
-
 	Wire.begin();
 	notecard.begin();
 
-	NoteSetFnDefault(fixed_alloc, NULL, noteDelay, noteMillis);
+	// notecard.setDebugOutputStream(Serial);
+
+	NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
 
 	// Get the ProductUID from the saved settings
 	// If no settings are found, use NoteCard internal settings!
@@ -322,20 +339,59 @@ bool blues_send_req(void)
 
 	if (rsp == NULL)
 	{
+		request_active = false;
 		return false;
 	}
-	json = JPrintUnformatted(rsp);
-	JPrintPreallocated(rsp, blues_response, 1024, false);
+	// json = JPrintUnformatted(rsp);
+	JPrintPreallocated(rsp, blues_response, 8192, false);
+
+	MYLOG("BLUES", "Card response = %s", blues_response);
+
+	if (strlen(blues_response) >= 8192)
+	{
+		MYLOG("BLUES", "Returned string of JPrintPreallocated is larger than buffer");
+		request_active = false;
+		notecard.deleteResponse(rsp);
+
+		MYLOG("BLUES", "Try re-init the library");
+		notecard.begin();
+		NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
+
+		// blues_start_req("card.restart");
+		// blues_send_req();
+
+		 return false;
+
+		// api_timer_stop();
+		// digitalWrite(LED_BLUE, LOW);
+		// digitalWrite(LED_GREEN, HIGH);
+		// while (1)
+		// {
+		// 	delay(2000);
+		// 	digitalToggle(LED_GREEN);
+		// 	digitalToggle(LED_BLUE);
+		// }
+	}
 
 	if (JIsPresent(rsp, "err"))
 	{
-		MYLOG("BLUES", "Card error response = %s", json);
+		MYLOG("BLUES", "Card error response = %s", blues_response);
+		char * error_type = JGetString(rsp, "err");
 		notecard.deleteResponse(rsp);
+		char *found_memory_fail = NULL;
+		found_memory_fail = strstr(error_type,"insufficient");
+		if (found_memory_fail)
+		{
+			MYLOG("BLUES", "Try re-init the library");
+			notecard.begin();
+			NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
+		}
+		request_active = false;
 		return false;
 	}
-	MYLOG("BLUES", "Card response = %s", json);
+	// MYLOG("BLUES", "Card response = %s", blues_response);
 	notecard.deleteResponse(rsp);
-
+	request_active = false;
 	return true;
 }
 
