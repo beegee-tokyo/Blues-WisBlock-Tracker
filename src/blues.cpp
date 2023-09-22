@@ -353,24 +353,16 @@ bool blues_send_req(void)
 		request_active = false;
 		notecard.deleteResponse(rsp);
 
-		MYLOG("BLUES", "Try re-init the library");
-		notecard.begin();
-		NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
+		MYLOG("BLUES", "Restart WisBlock");
+		api_reset();
+
+		// notecard.begin();
+		// NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
 
 		// blues_start_req("card.restart");
 		// blues_send_req();
 
 		 return false;
-
-		// api_timer_stop();
-		// digitalWrite(LED_BLUE, LOW);
-		// digitalWrite(LED_GREEN, HIGH);
-		// while (1)
-		// {
-		// 	delay(2000);
-		// 	digitalToggle(LED_GREEN);
-		// 	digitalToggle(LED_BLUE);
-		// }
 	}
 
 	if (JIsPresent(rsp, "err"))
@@ -382,9 +374,10 @@ bool blues_send_req(void)
 		found_memory_fail = strstr(error_type,"insufficient");
 		if (found_memory_fail)
 		{
-			MYLOG("BLUES", "Try re-init the library");
-			notecard.begin();
-			NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
+			MYLOG("BLUES", "Out of memory, restart WisBlock");
+			api_reset();
+			// notecard.begin();
+			// NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
 		}
 		request_active = false;
 		return false;
