@@ -263,54 +263,79 @@ bool blues_send_payload(uint8_t *data, uint16_t data_len)
  */
 void blues_hub_status(void)
 {
-	blues_start_req((char *)"hub.status");
-	blues_send_req();
+	bool request_success = false;
+	for (int try_send = 0; try_send < 3; try_send++)
+	{
+		blues_start_req((char *)"hub.status");
+		if (blues_send_req())
+		{
+			request_success = true;
+			break;
+		}
+	}
+	if (!request_success)
+	{
+		MYLOG("BLUES", "hub.status request failed");
+	}
 }
 
 bool blues_switch_gnss_mode(bool continuous_on)
 {
-
+	bool request_success = false;
 	if (continuous_on != gnss_continuous)
 	{
 		MYLOG("BLUES", "Change of GNSS mode, switch off first");
-		if (blues_start_req((char *)"card.location.mode"))
+		// Enable motion trigger
+		for (int try_send = 0; try_send < 3; try_send++)
 		{
-			// GNSS mode off
-			add_string_entry((char *)"mode", (char *)"off");
+			if (blues_start_req((char *)"card.location.mode"))
+			{
+				// GNSS mode off
+				add_string_entry((char *)"mode", (char *)"off");
+			}
+			if (blues_send_req())
+			{
+				request_success = true;
+				break;
+			}
 		}
-		if (!blues_send_req())
+		if (!request_success)
 		{
 			MYLOG("BLUES", "card.location.mode request failed");
 			return false;
 		}
 	}
 
+	request_success = false;
 	MYLOG("BLUES", "Set location mode %s", continuous_on ? "continuous" : "periodic");
-	if (blues_start_req((char *)"card.location.mode"))
+	for (int try_send = 0; try_send < 3; try_send++)
 	{
-		if (continuous_on)
+		if (blues_start_req((char *)"card.location.mode"))
 		{
-			gnss_continuous = true;
-			// Continous GNSS mode
-			add_string_entry((char *)"mode", (char *)"continuous");
-			add_number_entry((char *)"threshold", 1);
-		}
-		else
-		{
-			gnss_continuous = false;
-			// Periodic GNSS mode
-			add_string_entry((char *)"mode", (char *)"periodic");
-			add_number_entry((char *)"threshold", 1);
-		}
-		// Set location acquisition time to the sensor read time
-		add_number_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time / 2000));
-		if (!blues_send_req())
-		{
-			MYLOG("BLUES", "card.location.mode request failed");
-			return false;
+			if (continuous_on)
+			{
+				gnss_continuous = true;
+				// Continous GNSS mode
+				add_string_entry((char *)"mode", (char *)"continuous");
+				add_number_entry((char *)"threshold", 1);
+			}
+			else
+			{
+				gnss_continuous = false;
+				// Periodic GNSS mode
+				add_string_entry((char *)"mode", (char *)"periodic");
+				add_number_entry((char *)"threshold", 1);
+			}
+			// Set location acquisition time to the sensor read time
+			add_number_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time / 2000));
+			if (blues_send_req())
+			{
+				request_success = true;
+				break;
+			}
 		}
 	}
-	else
+	if (!request_success)
 	{
 		MYLOG("BLUES", "card.location.mode request failed");
 		return false;
@@ -328,52 +353,47 @@ bool blues_get_location(void)
 {
 	bool result = false;
 	bool got_gnss_location = false;
-	blues_start_req((char *)"card.location");
-	if (blues_send_req())
-	{
-		if (note_resp.containsKey("lat") && note_resp.containsKey("lon"))
-		{
-			float blues_latitude = note_resp["lat"];
-			float blues_longitude = note_resp["lon"];
-			float blues_altitude = 0;
-			got_gnss_location = true;
+	bool request_success = false;
 
-			if ((blues_latitude == 0.0) && (blues_longitude == 0.0))
+	for (int try_send = 0; try_send < 3; try_send++)
+	{
+		blues_start_req((char *)"card.location");
+		if (blues_send_req())
+		{
+			if (note_resp.containsKey("lat") && note_resp.containsKey("lon"))
 			{
-				MYLOG("BLUES", "No valid GPS data, report no location");
-			}
-			else
-			{
-				MYLOG("BLUES", "Got location Lat %.6f Long %0.6f", blues_latitude, blues_longitude);
-				g_solution_data.addGNSS_6(LPP_CHANNEL_GPS, (uint32_t)(blues_latitude * 10000000), (uint32_t)(blues_longitude * 10000000), blues_altitude);
-				g_solution_data.addPresence(LPP_CHANNEL_GPS_TOWER, false);
-				if (gnss_continuous)
+				float blues_latitude = note_resp["lat"];
+				float blues_longitude = note_resp["lon"];
+				float blues_altitude = 0;
+				got_gnss_location = true;
+
+				if ((blues_latitude == 0.0) && (blues_longitude == 0.0))
 				{
-					// We got a location, switch to periodic mode
-					blues_switch_gnss_mode(false);
+					MYLOG("BLUES", "No valid GPS data, report no location");
 				}
-				result = true;
+				else
+				{
+					MYLOG("BLUES", "Got location Lat %.6f Long %0.6f", blues_latitude, blues_longitude);
+					g_solution_data.addGNSS_6(LPP_CHANNEL_GPS, (uint32_t)(blues_latitude * 10000000), (uint32_t)(blues_longitude * 10000000), blues_altitude);
+					g_solution_data.addPresence(LPP_CHANNEL_GPS_TOWER, false);
+					if (gnss_continuous)
+					{
+						// We got a location, switch to periodic mode
+						blues_switch_gnss_mode(false);
+					}
+					result = true;
+				}
 			}
-		}
-		if (note_resp.containsKey("mode"))
-		{
-			char *mode = (char *)note_resp["mode"].as<const char *>();
-			if ((strcmp(mode, "periodic") == 0) || (strcmp(mode, "continuous") == 0))
-			{
-				MYLOG("BLUES", "GNSS mode %s", mode);
-			}
-			else
-			{
-				MYLOG("BLUES", "Unknown GNSS mode");
-				// blues_switch_gnss_mode(gnss_continuous);
-			}
+			request_success = true;
+			break;
 		}
 	}
-	else
+	if (!request_success)
 	{
-		MYLOG("BLUES", "card.location failed");
+		MYLOG("BLUES", "card.location request failed");
 	}
 
+	request_success = false;
 	if (!result)
 	{
 		if (!gnss_continuous)
@@ -381,6 +401,10 @@ bool blues_get_location(void)
 			// Switch GNSS to continuous to get a location
 			blues_switch_gnss_mode(true);
 		}
+	}
+
+	for (int try_send = 0; try_send < 3; try_send++)
+	{
 		blues_start_req((char *)"card.time");
 		if (blues_send_req())
 		{
@@ -431,22 +455,33 @@ bool blues_get_location(void)
 					}
 				}
 			}
+			request_success = true;
+			break;
 		}
-		else
-		{
-			MYLOG("BLUES", "card.time");
-		}
+	}
+	if (!request_success)
+	{
+		MYLOG("BLUES", "card.time request failed");
 	}
 
 	if (got_gnss_location)
 	{
+		request_success = false;
 		MYLOG("BLUES", "card.location.mode delete last location");
 		// Clear last GPS location
-		blues_start_req((char *)"card.location.mode");
-		add_bool_entry((char *)"delete", true);
-		if (!blues_send_req())
+		for (int try_send = 0; try_send < 3; try_send++)
 		{
-			MYLOG("BLUES", "card.location.mode delete last failed");
+			blues_start_req((char *)"card.location.mode");
+			add_bool_entry((char *)"delete", true);
+			if (blues_send_req())
+			{
+				request_success = true;
+				break;
+			}
+		}
+		if (!request_success)
+		{
+			MYLOG("BLUES", "card.location.mode delete last location request failed");
 		}
 	}
 	return result;

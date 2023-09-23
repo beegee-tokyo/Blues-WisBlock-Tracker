@@ -72,6 +72,7 @@ bool blues_I2C_TX(uint16_t device_address_, uint8_t *buffer_, uint16_t size_)
 			MYLOG("BLUES_I2C", "TX unknown error encounter during I2C transmission");
 		}
 		result = false;
+		blues_I2C_RST();
 	}
 
 	return result;
@@ -126,6 +127,7 @@ bool blues_I2C_RX(uint16_t device_address_, uint8_t *buffer_, uint16_t requested
 			MYLOG("BLUES_I2C", "RX unknown error encounter during I2C transmission");
 		}
 		result = false;
+		blues_I2C_RST();
 	}
 
 	// Delay briefly ensuring that the Notecard can
