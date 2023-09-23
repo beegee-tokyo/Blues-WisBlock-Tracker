@@ -66,12 +66,13 @@ void lora_data_handler(void);
 #define N_BLUES_ATTN 0b1011111111111111
 
 // Cayenne LPP Channel numbers per sensor value
-#define LPP_CHANNEL_BATT 1	  // Base Board
-#define LPP_CHANNEL_HUMID_2 6 // RAK1906
-#define LPP_CHANNEL_TEMP_2 7  // RAK1906
-#define LPP_CHANNEL_PRESS_2 8 // RAK1906
-#define LPP_CHANNEL_GAS_2 9	  // RAK1906
-#define LPP_CHANNEL_GPS 10	  // RAK1910/RAK12500
+#define LPP_CHANNEL_BATT 1		 // Base Board
+#define LPP_CHANNEL_HUMID_2 6	 // RAK1906
+#define LPP_CHANNEL_TEMP_2 7	 // RAK1906
+#define LPP_CHANNEL_PRESS_2 8	 // RAK1906
+#define LPP_CHANNEL_GAS_2 9		 // RAK1906
+#define LPP_CHANNEL_GPS 10		 // RAK13102
+#define LPP_CHANNEL_GPS_TOWER 11 // RAK13102
 
 // Globals
 extern WisCayenne g_solution_data;
@@ -95,6 +96,8 @@ bool blues_get_location(void);
 bool blues_enable_attn(void);
 bool blues_disable_attn(void);
 bool blues_send_payload(uint8_t *data, uint16_t data_len);
+bool blues_switch_gnss_mode(bool continuous_on);
+void blues_card_restore(void);
 extern s_blues_settings g_blues_settings;
 extern char blues_response[];
 

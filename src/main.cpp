@@ -23,7 +23,7 @@ uint16_t rcvd_data_len = 0;
 uint8_t send_fail = 0;
 
 /** Set the device name, max length is 10 characters */
-char g_ble_dev_name[10] = "RAK";
+char g_ble_dev_name[10] = "RAK-BLUES";
 
 /** Flag for RAK1906 sensor */
 bool has_rak1906 = false;

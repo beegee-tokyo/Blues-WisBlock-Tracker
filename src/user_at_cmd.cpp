@@ -215,7 +215,7 @@ int at_set_blues_mode(char *str)
 int at_query_blues_mode(void)
 {
 	snprintf(g_at_query_buf, ATQUERY_SIZE, "%s", g_blues_settings.conn_continous ? "1" : "0");
-	MYLOG("USR_AT", "Using %s connection", g_blues_settings.conn_continous ? "continous" : "periodic");
+	MYLOG("USR_AT", "Using %s connection", g_blues_settings.conn_continous ? "continuous" : "periodic");
 	return AT_SUCCESS;
 }
 
@@ -287,6 +287,12 @@ static int at_reset_blues_settings(void)
 		InternalFS.remove(blues_file_name);
 	}
 	return AT_SUCCESS;
+}
+
+static int at_blues_factory(void)
+{
+	blues_card_restore();
+	 return AT_SUCCESS;
 }
 
 /**
@@ -390,6 +396,7 @@ int at_blues_req(char *str)
 	}
 	// Copy response for AT response
 	snprintf(g_at_query_buf, ATQUERY_SIZE, "%s", blues_response);
+	AT_PRINTF("%s\n", blues_response);
 	return AT_SUCCESS;
 }
 
@@ -407,6 +414,7 @@ atcmd_t g_user_at_cmd_new_list[] = {
 	{"+BR", "Remove all Blues Settings", NULL, NULL, at_reset_blues_settings, "W"},
 	{"+BLUES", "Blues Notecard Status", at_blues_status, NULL, NULL, "R"},
 	{"+BREQ", "Send a Blues Notecard Request", NULL, at_blues_req, NULL, "W"},
+	{"+BRES", "Factory reset Blues Notecard Request", NULL, NULL, at_blues_factory, "W"},
 };
 
 /** Number of user defined AT commands */

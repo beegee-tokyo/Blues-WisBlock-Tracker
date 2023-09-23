@@ -282,7 +282,6 @@ bool blues_send_req(void)
 	jsonLen += 1;
 
 	// Transmit the request in chunks, but also in segments so as not to overwhelm the notecard's interrupt buffers
-	const char *estr;
 	uint8_t *chunk = in_out_buff;
 	uint16_t sentInSegment = 0;
 	while (jsonLen > 0)
