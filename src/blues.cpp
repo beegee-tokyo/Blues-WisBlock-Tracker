@@ -9,61 +9,14 @@
  *
  */
 #include "main.h"
-#include <NoteTime.h>
-
 #ifndef PRODUCT_UID
 #define PRODUCT_UID "com.my-company.my-name:my-project"
 #endif
 #define myProductID PRODUCT_UID
 
-/** Notecard instance */
-Notecard notecard;
+char blues_response[4096];
 
-/** Callback for ATTN signal */
-void blues_attn_cb(void);
-
-/** JSON request to NoteCard */
-J *req;
-
-/** Buffer for response (if used beside of debug output) */
-char blues_response[8192];
-
-/** Buffer for request */
-uint8_t fixed_req[8192] = {0};
-
-volatile uint8_t *malloc_ptr = fixed_req;
-
-volatile uint32_t used_malloc = 0;
-
-/**
- * @brief Replace malloc with a fixed buffer address return
- * 
- * @param size unused
- * @return void* pointer to pre-allocated buffer
- */
-void *fixed_alloc(size_t size)
-{
-	if (size >= 8192)
-	{
-		MYLOG("BLUES","Requested %d bytes", size);
-		return (void *)NULL;
-	}
-	return (void *) fixed_req;
-}
-
-/**
- * @brief Replace free with a clean of the fixed buffer
- * 
- * @param ptr unused
- */
-void fixed_free(void * ptr)
-{
-	memset(fixed_req,0,8182);
-	return;
-}
-
-/** Flag to avoid multiple note requests sent to the NoteCard */
-bool request_active = false;
+#include "blues_i2c.h"
 
 /**
  * @brief Initialize Blues NoteCard
@@ -74,12 +27,6 @@ bool request_active = false;
 bool init_blues(void)
 {
 	Wire.begin();
-
-	notecard.begin();
-
-	// NoteSetFn(fixed_alloc, fixed_free, noteDelay, noteMillis);
-
-	// notecard.setDebugOutputStream(Serial);
 
 	// Get the ProductUID from the saved settings
 	// If no settings are found, use NoteCard internal settings!
@@ -94,26 +41,27 @@ bool init_blues(void)
 		}
 
 		MYLOG("BLUES", "Set Product ID and connection mode");
-		if (blues_start_req("hub.set"))
+		if (blues_start_req((char *)"hub.set"))
 		{
-			JAddStringToObject(req, "product", g_blues_settings.product_uid);
+			add_string_entry((char *)"product", g_blues_settings.product_uid);
 			if (g_blues_settings.conn_continous)
 			{
-				JAddStringToObject(req, "mode", "continuous");
+				add_string_entry((char *)"mode", (char *)"continuous");
 			}
 			else
 			{
-				JAddStringToObject(req, "mode", "minimum");
+				add_string_entry((char *)"mode", (char *)"minimum");
 			}
 			// Set sync time to 20 times the sensor read time
-			JAddNumberToObject(req, "seconds", (g_lorawan_settings.send_repeat_time * 20 / 1000));
-			JAddBoolToObject(req, "heartbeat", true);
+			add_number_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time * 20 / 1000));
+			add_bool_entry((char *)"heartbeat", true);
 
 			if (!blues_send_req())
 			{
 				MYLOG("BLUES", "hub.set request failed");
 				return false;
 			}
+			MYLOG("BLUES", "Response: %s", blues_response);
 		}
 		else
 		{
@@ -123,17 +71,17 @@ bool init_blues(void)
 
 #if USE_GNSS == 1
 		MYLOG("BLUES", "Set location mode");
-		if (blues_start_req("card.location.mode"))
+		if (blues_start_req((char *)"card.location.mode"))
 		{
 			// Continous GNSS mode
 			// JAddStringToObject(req, "mode", "continous");
 
 			// Periodic GNSS mode
-			JAddStringToObject(req, "mode", "periodic");
+			add_string_entry((char *)"mode", (char *)"periodic");
 
 			// Set location acquisition time to the sensor read time
-			JAddNumberToObject(req, "seconds", (g_lorawan_settings.send_repeat_time / 2000));
-			JAddBoolToObject(req, "heartbeat", true);
+			add_number_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time / 2000));
+			add_bool_entry((char *)"heartbeat", true);
 			if (!blues_send_req())
 			{
 				MYLOG("BLUES", "card.location.mode request failed");
@@ -147,10 +95,10 @@ bool init_blues(void)
 		}
 #else
 		MYLOG("BLUES", "Stop location mode");
-		if (blues_start_req("card.location.mode"))
+		if (blues_start_req((char *)"card.location.mode"))
 		{
 			// GNSS mode off
-			JAddStringToObject(req, "mode", "off");
+			add_string_entry((char *)"mode", (char *)"off");
 			if (!blues_send_req())
 			{
 				MYLOG("BLUES", "card.location.mode request failed");
@@ -190,20 +138,20 @@ bool init_blues(void)
 
 		MYLOG("BLUES", "Set APN");
 		// {“req”:”card.wireless”}
-		if (blues_start_req("card.wireless"))
+		if (blues_start_req((char *)"card.wireless"))
 		{
-			JAddStringToObject(req, "mode", "auto");
+			add_string_entry((char *)"mode", (char *)"auto");
 
 			if (g_blues_settings.use_ext_sim)
 			{
 				// USING EXTERNAL SIM CARD
-				JAddStringToObject(req, "apn", g_blues_settings.ext_sim_apn);
-				JAddStringToObject(req, "method", "dual-secondary-primary");
+				add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
+				add_string_entry((char *)"method", (char *)"dual-secondary-primary");
 			}
 			else
 			{
 				// USING BLUES eSIM CARD
-				JAddStringToObject(req, "method", "primary");
+				add_string_entry((char *)"method", (char *)"primary");
 			}
 			if (!blues_send_req())
 			{
@@ -220,13 +168,13 @@ bool init_blues(void)
 #if IS_V2 == 1
 		// Only for V2 cards, setup the WiFi network
 		MYLOG("BLUES", "Set WiFi");
-		if (blues_start_req("card.wifi"))
+		if (blues_start_req((char *)"card.wifi"))
 		{
-			JAddStringToObject(req, "ssid", "-");
-			JAddStringToObject(req, "password", "-");
-			JAddStringToObject(req, "name", "RAK-");
-			JAddStringToObject(req, "org", "RAK-PH");
-			JAddBoolToObject(req, "start", false);
+			add_string_entry((char *)"ssid", (char *)"-");
+			add_string_entry((char *)"password", (char *)"-");
+			add_string_entry((char *)"name", (char *)"RAK-");
+			add_string_entry((char *)"org", (char *)"RAK-PH");
+			add_bool_entry((char *)"start", false);
 
 			if (!blues_send_req())
 			{
@@ -242,7 +190,7 @@ bool init_blues(void)
 	}
 
 	// {"req": "card.version"}
-	if (blues_start_req("card.version"))
+	if (blues_start_req((char *)"card.version"))
 	{
 		if (!blues_send_req())
 		{
@@ -262,147 +210,43 @@ bool init_blues(void)
  */
 bool blues_send_payload(uint8_t *data, uint16_t data_len)
 {
-	if (blues_start_req("note.add"))
+	char payload_b86[255];
+
+	if (blues_start_req((char *)"note.add"))
 	{
-		JAddStringToObject(req, "file", "data.qo");
-		JAddBoolToObject(req, "sync", true);
-		J *body = JCreateObject();
-		if (body != NULL)
+		add_string_entry((char *)"file", (char *)"data.qo");
+		add_bool_entry((char *)"sync", true);
+		char node_id[24];
+		sprintf(node_id, "%02x%02x%02x%02x%02x%02x%02x%02x",
+				g_lorawan_settings.node_device_eui[0], g_lorawan_settings.node_device_eui[1],
+				g_lorawan_settings.node_device_eui[2], g_lorawan_settings.node_device_eui[3],
+				g_lorawan_settings.node_device_eui[4], g_lorawan_settings.node_device_eui[5],
+				g_lorawan_settings.node_device_eui[6], g_lorawan_settings.node_device_eui[7]);
+		add_string_nested_entry((char *)"body", (char *)"dev_eui", node_id);
+
+		myJB64Encode(payload_b86, (const char *)data, data_len);
+
+		add_string_entry((char *)"payload", payload_b86);
+
+		MYLOG("BLUES", "Finished parsing");
+		if (!blues_send_req())
 		{
-			char node_id[24];
-			sprintf(node_id, "%02x%02x%02x%02x%02x%02x%02x%02x",
-					g_lorawan_settings.node_device_eui[0], g_lorawan_settings.node_device_eui[1],
-					g_lorawan_settings.node_device_eui[2], g_lorawan_settings.node_device_eui[3],
-					g_lorawan_settings.node_device_eui[4], g_lorawan_settings.node_device_eui[5],
-					g_lorawan_settings.node_device_eui[6], g_lorawan_settings.node_device_eui[7]);
-			JAddStringToObject(body, "dev_eui", node_id);
-
-			JAddItemToObject(req, "body", body);
-
-			JAddBinaryToObject(req, "payload", data, data_len);
-
-			MYLOG("BLUES", "Finished parsing");
-			if (!blues_send_req())
-			{
-				MYLOG("PABLUESRSE", "Send request failed");
-				return false;
-			}
-			return true;
+			MYLOG("BLUES", "Send request failed");
+			return false;
 		}
-		else
-		{
-			request_active = false;
-			MYLOG("BLUES", "Error creating body");
-		}
-	}
-	return false;
-}
-
-/**
- * @brief Create a request structure to be sent to the NoteCard
- *
- * @param request_name name of request, e.g. card.wireless
- * @return true if request could be created
- * @return false if request could not be created
- */
-bool blues_start_req(String request_name)
-{
-	if (request_active)
-	{
-		MYLOG("BLUES", "A request already exists");
-		return false;
-	}
-
-	req = notecard.newRequest(request_name.c_str());
-	if (req != NULL)
-	{
-		request_active = true;
 		return true;
 	}
-	MYLOG("BLUES", "Create request failed");
-
 	return false;
 }
 
 /**
- * @brief Send a completed request to the NoteCard.
- *
- * @return true if request could be sent and the response does not have "err"
- * @return false if request could not be sent or the response did have "err"
- */
-bool blues_send_req(void)
-{
-	char *json = JPrintUnformatted(req);
-	MYLOG("BLUES", "Card request = %s", json);
-
-	sprintf(blues_response, "Req failed");
-	J *rsp;
-	rsp = notecard.requestAndResponse(req);
-
-	// Mark request as finished
-	request_active = false;
-
-	if (rsp == NULL)
-	{
-		request_active = false;
-		return false;
-	}
-	// json = JPrintUnformatted(rsp);
-	JPrintPreallocated(rsp, blues_response, 8192, false);
-
-	MYLOG("BLUES", "Card response = %s", blues_response);
-
-	if (strlen(blues_response) >= 8192)
-	{
-		MYLOG("BLUES", "Returned string of JPrintPreallocated is larger than buffer");
-		request_active = false;
-		notecard.deleteResponse(rsp);
-
-		MYLOG("BLUES", "Restart WisBlock");
-		api_reset();
-
-		// notecard.begin();
-		// NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
-
-		// blues_start_req("card.restart");
-		// blues_send_req();
-
-		 return false;
-	}
-
-	if (JIsPresent(rsp, "err"))
-	{
-		MYLOG("BLUES", "Card error response = %s", blues_response);
-		char * error_type = JGetString(rsp, "err");
-		notecard.deleteResponse(rsp);
-		char *found_memory_fail = NULL;
-		found_memory_fail = strstr(error_type,"insufficient");
-		if (found_memory_fail)
-		{
-			MYLOG("BLUES", "Out of memory, restart WisBlock");
-			api_reset();
-			// notecard.begin();
-			// NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
-		}
-		request_active = false;
-		return false;
-	}
-	// MYLOG("BLUES", "Card response = %s", blues_response);
-	notecard.deleteResponse(rsp);
-	request_active = false;
-	return true;
-}
-
-/**
- * @brief Request NoteHub status, mainly for debug purposes
+ * @brief Request NoteHub status, only for debug purposes
  *
  */
 void blues_hub_status(void)
 {
-	if (blues_start_req("hub.status"))
-	{
-		blues_send_req();
-	}
+	blues_start_req((char *)"hub.status");
+	blues_send_req();
 }
 
 /**
@@ -414,40 +258,13 @@ void blues_hub_status(void)
 bool blues_get_location(void)
 {
 	bool result = false;
-	if (blues_start_req("card.location"))
+	blues_start_req((char *)"card.location");
+	if (blues_send_req())
 	{
-		J *rsp;
-		rsp = notecard.requestAndResponse(req);
-		if (rsp == NULL)
+		if (note_resp.containsKey("lat") && note_resp.containsKey("lon"))
 		{
-			MYLOG("BLUES", "card.location failed, report no location");
-			request_active = false;
-			return false;
-		}
-		char *json = JPrintUnformatted(rsp);
-		MYLOG("BLUES", "Card response = %s", json);
-
-		if (JIsPresent(rsp, "err"))
-		{
-			MYLOG("BLUES", "Card error response = %s", blues_response);
-			char *error_type = JGetString(rsp, "err");
-			notecard.deleteResponse(rsp);
-			char *found_memory_fail = NULL;
-			found_memory_fail = strstr(error_type, "insufficient");
-			if (found_memory_fail)
-			{
-				MYLOG("BLUES", "Out of memory, restart WisBlock");
-				api_reset();
-				// notecard.begin();
-				// NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
-			}
-			request_active = false;
-			return false;
-		}
-		if (JHasObjectItem(rsp, "lat") && JHasObjectItem(rsp, "lat"))
-		{
-			float blues_latitude = JGetNumber(rsp, "lat");
-			float blues_longitude = JGetNumber(rsp, "lon");
+			float blues_latitude = note_resp["lat"];
+			float blues_longitude = note_resp["lon"];
 			float blues_altitude = 0;
 
 			if ((blues_latitude == 0.0) && (blues_longitude == 0.0))
@@ -461,35 +278,21 @@ bool blues_get_location(void)
 				result = true;
 			}
 		}
-
-		notecard.deleteResponse(rsp);
-		request_active = false;
 	}
 	else
 	{
-		MYLOG("BLUES", "card.location request failed");
+		MYLOG("BLUES", "card.location failed");
 	}
 
 	if (!result)
 	{
-		// No GPS coordinates, get last tower location
-		if (blues_start_req("card.time"))
+		blues_start_req((char *)"card.time");
+		if (blues_send_req())
 		{
-			J *rsp;
-			rsp = notecard.requestAndResponse(req);
-			if (rsp == NULL)
+			if (note_resp.containsKey("lat") && note_resp.containsKey("lon"))
 			{
-				MYLOG("BLUES", "card.time failed, report no location");
-				request_active = false;
-				return false;
-			}
-			char *json = JPrintUnformatted(rsp);
-			MYLOG("BLUES", "Card response = %s", json);
-
-			if (JHasObjectItem(rsp, "lat") && JHasObjectItem(rsp, "lat"))
-			{
-				float blues_latitude = JGetNumber(rsp, "lat");
-				float blues_longitude = JGetNumber(rsp, "lon");
+				float blues_latitude = note_resp["lat"];
+				float blues_longitude = note_resp["lon"];
 				float blues_altitude = 0;
 
 				if ((blues_latitude == 0.0) && (blues_longitude == 0.0))
@@ -503,27 +306,19 @@ bool blues_get_location(void)
 					result = true;
 				}
 			}
-
-			notecard.deleteResponse(rsp);
-			request_active = false;
+		}
+		else
+		{
+			MYLOG("BLUES", "card.time");
 		}
 	}
 
 	// Clear last GPS location
-	if (blues_start_req("card.location.mode"))
+	blues_start_req((char *)"card.location.mode");
+	add_bool_entry((char *)"delete", true);
+	if (!blues_send_req())
 	{
-		JAddBoolToObject(req, "delete", true);
-		J *rsp;
-		rsp = notecard.requestAndResponse(req);
-		if (rsp == NULL)
-		{
-			MYLOG("BLUES", "card.location.mode");
-		}
-		char *json = JPrintUnformatted(rsp);
-		MYLOG("BLUES", "Card response = %s", json);
-		notecard.deleteResponse(rsp);
-
-		request_active = false;
+		MYLOG("BLUES", "card.location.mode delete last failed");
 	}
 	return result;
 }
@@ -537,36 +332,36 @@ bool blues_get_location(void)
  */
 bool blues_enable_attn(void)
 {
-	MYLOG("BLUES", "Enable ATTN on motion");
-	if (blues_start_req("card.attn"))
-	{
-		JAddStringToObject(req, "mode", "motion");
-		if (!blues_send_req())
-		{
-			MYLOG("BLUES", "card.attn request failed");
-			return false;
-		}
-	}
-	else
-	{
-		MYLOG("BLUES", "Request creation failed");
-	}
-	attachInterrupt(WB_IO5, blues_attn_cb, RISING);
+	// MYLOG("BLUES", "Enable ATTN on motion");
+	// if (blues_start_req("card.attn"))
+	// {
+	// 	JAddStringToObject(req, "mode", "motion");
+	// 	if (!blues_send_req())
+	// 	{
+	// 		MYLOG("BLUES", "card.attn request failed");
+	// 		return false;
+	// 	}
+	// }
+	// else
+	// {
+	// 	MYLOG("BLUES", "Request creation failed");
+	// }
+	// attachInterrupt(WB_IO5, blues_attn_cb, RISING);
 
-	MYLOG("BLUES", "Arm ATTN on motion");
-	if (blues_start_req("card.attn"))
-	{
-		JAddStringToObject(req, "mode", "arm");
-		if (!blues_send_req())
-		{
-			MYLOG("BLUES", "card.attn request failed");
-			return false;
-		}
-	}
-	else
-	{
-		MYLOG("BLUES", "Request creation failed");
-	}
+	// MYLOG("BLUES", "Arm ATTN on motion");
+	// if (blues_start_req("card.attn"))
+	// {
+	// 	JAddStringToObject(req, "mode", "arm");
+	// 	if (!blues_send_req())
+	// 	{
+	// 		MYLOG("BLUES", "card.attn request failed");
+	// 		return false;
+	// 	}
+	// }
+	// else
+	// {
+	// 	MYLOG("BLUES", "Request creation failed");
+	// }
 	return true;
 }
 
@@ -578,33 +373,33 @@ bool blues_enable_attn(void)
  */
 bool blues_disable_attn(void)
 {
-	MYLOG("BLUES", "Disable ATTN on motion");
-	detachInterrupt(WB_IO5);
+	// MYLOG("BLUES", "Disable ATTN on motion");
+	// detachInterrupt(WB_IO5);
 
-	if (blues_start_req("card.attn"))
-	{
-		JAddStringToObject(req, "mode", "disarm");
-		if (!blues_send_req())
-		{
-			MYLOG("BLUES", "card.attn request failed");
-		}
-	}
-	else
-	{
-		MYLOG("BLUES", "Request creation failed");
-	}
-	if (blues_start_req("card.attn"))
-	{
-		JAddStringToObject(req, "mode", "-motion");
-		if (!blues_send_req())
-		{
-			MYLOG("BLUES", "card.attn request failed");
-		}
-	}
-	else
-	{
-		MYLOG("BLUES", "Request creation failed");
-	}
+	// if (blues_start_req("card.attn"))
+	// {
+	// 	JAddStringToObject(req, "mode", "disarm");
+	// 	if (!blues_send_req())
+	// 	{
+	// 		MYLOG("BLUES", "card.attn request failed");
+	// 	}
+	// }
+	// else
+	// {
+	// 	MYLOG("BLUES", "Request creation failed");
+	// }
+	// if (blues_start_req("card.attn"))
+	// {
+	// 	JAddStringToObject(req, "mode", "-motion");
+	// 	if (!blues_send_req())
+	// 	{
+	// 		MYLOG("BLUES", "card.attn request failed");
+	// 	}
+	// }
+	// else
+	// {
+	// 	MYLOG("BLUES", "Request creation failed");
+	// }
 
 	return true;
 }

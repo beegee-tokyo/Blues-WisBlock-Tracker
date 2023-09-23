@@ -261,7 +261,7 @@ void app_event_handler(void)
 		blues_send_payload(g_solution_data.getBuffer(), g_solution_data.getSize());
 
 		// Request sync with NoteHub
-		blues_start_req("hub.sync");
+		blues_start_req((char *)"hub.sync");
 		blues_send_req();
 
 		if (!g_lpwan_has_joined)
@@ -288,10 +288,10 @@ void app_event_handler(void)
 		// Send over cellular connection
 		MYLOG("APP", "Blues ATTN event");
 
-		blues_start_req("card.attn");
+		blues_start_req((char *)"card.attn");
 		blues_send_req();
 
-		blues_start_req("card.time");
+		blues_start_req((char *)"card.time");
 		blues_send_req();
 
 		// req = notecard.newRequest("card.attn");

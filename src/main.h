@@ -14,8 +14,8 @@
 
 #include <Arduino.h>
 #include <WisBlock-API-V2.h>
-#include <Notecard.h>
 #include "RAK1906_env.h"
+#include <ArduinoJson.h>
 
 // Debug output set to 0 to disable app debug output
 #ifndef MY_DEBUG
@@ -88,14 +88,13 @@ struct s_blues_settings
 };
 
 bool init_blues(void);
-bool blues_start_req(String request_name);
+bool blues_start_req(char *request);
 bool blues_send_req(void);
 void blues_hub_status(void);
 bool blues_get_location(void);
 bool blues_enable_attn(void);
 bool blues_disable_attn(void);
 bool blues_send_payload(uint8_t *data, uint16_t data_len);
-extern J *req;
 extern s_blues_settings g_blues_settings;
 extern char blues_response[];
 
