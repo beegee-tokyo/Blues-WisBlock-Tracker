@@ -31,6 +31,10 @@ char blues_response[8192];
 /** Buffer for request */
 uint8_t fixed_req[8192] = {0};
 
+volatile uint8_t *malloc_ptr = fixed_req;
+
+volatile uint32_t used_malloc = 0;
+
 /**
  * @brief Replace malloc with a fixed buffer address return
  * 
@@ -70,11 +74,12 @@ bool request_active = false;
 bool init_blues(void)
 {
 	Wire.begin();
+
 	notecard.begin();
 
-	// notecard.setDebugOutputStream(Serial);
+	// NoteSetFn(fixed_alloc, fixed_free, noteDelay, noteMillis);
 
-	NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
+	// notecard.setDebugOutputStream(Serial);
 
 	// Get the ProductUID from the saved settings
 	// If no settings are found, use NoteCard internal settings!
@@ -422,6 +427,23 @@ bool blues_get_location(void)
 		char *json = JPrintUnformatted(rsp);
 		MYLOG("BLUES", "Card response = %s", json);
 
+		if (JIsPresent(rsp, "err"))
+		{
+			MYLOG("BLUES", "Card error response = %s", blues_response);
+			char *error_type = JGetString(rsp, "err");
+			notecard.deleteResponse(rsp);
+			char *found_memory_fail = NULL;
+			found_memory_fail = strstr(error_type, "insufficient");
+			if (found_memory_fail)
+			{
+				MYLOG("BLUES", "Out of memory, restart WisBlock");
+				api_reset();
+				// notecard.begin();
+				// NoteSetFnDefault(fixed_alloc, fixed_free, noteDelay, noteMillis);
+			}
+			request_active = false;
+			return false;
+		}
 		if (JHasObjectItem(rsp, "lat") && JHasObjectItem(rsp, "lat"))
 		{
 			float blues_latitude = JGetNumber(rsp, "lat");
