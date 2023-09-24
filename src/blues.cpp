@@ -14,10 +14,13 @@
 #endif
 #define myProductID PRODUCT_UID
 
+/** Buffer for serialized JSON response */
 char blues_response[4096];
 
+// I2C functions for Blues NoteCard
 #include "blues_i2c.h"
 
+/** Flag if GNSS is in continuous or periodic mode */
 bool gnss_continuous = true;
 
 /**
@@ -49,18 +52,18 @@ bool init_blues(void)
 		{
 			if (blues_start_req((char *)"hub.set"))
 			{
-				add_string_entry((char *)"product", g_blues_settings.product_uid);
+				blues_add_string_entry((char *)"product", g_blues_settings.product_uid);
 				if (g_blues_settings.conn_continous)
 				{
-					add_string_entry((char *)"mode", (char *)"continuous");
+					blues_add_string_entry((char *)"mode", (char *)"continuous");
 				}
 				else
 				{
-					add_string_entry((char *)"mode", (char *)"minimum");
+					blues_add_string_entry((char *)"mode", (char *)"minimum");
 				}
 				// Set sync time to 20 times the sensor read time
-				add_number_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time * 20 / 1000));
-				add_bool_entry((char *)"heartbeat", true);
+				blues_add_integer_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time * 20 / 1000));
+				blues_add_bool_entry((char *)"heartbeat", true);
 
 				if (blues_send_req())
 				{
@@ -83,10 +86,10 @@ bool init_blues(void)
 		{
 			if (blues_start_req((char *)"card.motion.mode"))
 			{
-				add_bool_entry((char *)"start", true);
+				blues_add_bool_entry((char *)"start", true);
 
 				// Set sensitivity
-				add_number_entry((char *)"sensitivity", -1);
+				blues_add_integer_entry((char *)"sensitivity", -1);
 
 				if (blues_send_req())
 				{
@@ -144,24 +147,36 @@ bool init_blues(void)
 		// 	return false;
 		// }
 
-		MYLOG("BLUES", "Set APN");
+		MYLOG("BLUES", "Set SIM and APN");
 		for (int try_send = 0; try_send < 3; try_send++)
 		{
 			if (blues_start_req((char *)"card.wireless"))
 			{
-				add_string_entry((char *)"mode", (char *)"auto");
+				blues_add_string_entry((char *)"mode", (char *)"auto");
 
-				if (g_blues_settings.use_ext_sim)
+				switch (g_blues_settings.sim_usage)
 				{
-					// USING EXTERNAL SIM CARD
-					add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
-					add_string_entry((char *)"method", (char *)"dual-secondary-primary");
-				}
-				else
-				{
+				case 0:
 					// USING BLUES eSIM CARD
-					add_string_entry((char *)"method", (char *)"primary");
+					blues_add_string_entry((char *)"method", (char *)"primary");
+					break;
+				case 1:
+					// USING EXTERNAL SIM CARD only
+					blues_add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
+					blues_add_string_entry((char *)"method", (char *)"secondary");
+					break;
+				case 2:
+					// USING EXTERNAL SIM CARD as primary
+					blues_add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
+					blues_add_string_entry((char *)"method", (char *)"dual-secondary-primary");
+					break;
+				case 3:
+					// USING EXTERNAL SIM CARD as secondary
+					blues_add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
+					blues_add_string_entry((char *)"method", (char *)"dual-primary-secondary");
+					break;
 				}
+
 				if (blues_send_req())
 				{
 					request_success = true;
@@ -183,11 +198,11 @@ bool init_blues(void)
 		{
 			if (blues_start_req((char *)"card.wifi"))
 			{
-				add_string_entry((char *)"ssid", (char *)"-");
-				add_string_entry((char *)"password", (char *)"-");
-				add_string_entry((char *)"name", (char *)"RAK-");
-				add_string_entry((char *)"org", (char *)"RAK-PH");
-				add_bool_entry((char *)"start", false);
+				blues_add_string_entry((char *)"ssid", (char *)"-");
+				blues_add_string_entry((char *)"password", (char *)"-");
+				blues_add_string_entry((char *)"name", (char *)"RAK-");
+				blues_add_string_entry((char *)"org", (char *)"RAK-PH");
+				blues_add_bool_entry((char *)"start", false);
 
 				if (blues_send_req())
 				{
@@ -232,19 +247,19 @@ bool blues_send_payload(uint8_t *data, uint16_t data_len)
 
 	if (blues_start_req((char *)"note.add"))
 	{
-		add_string_entry((char *)"file", (char *)"data.qo");
-		add_bool_entry((char *)"sync", true);
+		blues_add_string_entry((char *)"file", (char *)"data.qo");
+		blues_add_bool_entry((char *)"sync", true);
 		char node_id[24];
 		sprintf(node_id, "%02x%02x%02x%02x%02x%02x%02x%02x",
 				g_lorawan_settings.node_device_eui[0], g_lorawan_settings.node_device_eui[1],
 				g_lorawan_settings.node_device_eui[2], g_lorawan_settings.node_device_eui[3],
 				g_lorawan_settings.node_device_eui[4], g_lorawan_settings.node_device_eui[5],
 				g_lorawan_settings.node_device_eui[6], g_lorawan_settings.node_device_eui[7]);
-		add_string_nested_entry((char *)"body", (char *)"dev_eui", node_id);
+		blues_add_nested_string_entry((char *)"body", (char *)"dev_eui", node_id);
 
 		myJB64Encode(payload_b86, (const char *)data, data_len);
 
-		add_string_entry((char *)"payload", payload_b86);
+		blues_add_string_entry((char *)"payload", payload_b86);
 
 		MYLOG("BLUES", "Finished parsing");
 		if (!blues_send_req())
@@ -291,7 +306,7 @@ bool blues_switch_gnss_mode(bool continuous_on)
 			if (blues_start_req((char *)"card.location.mode"))
 			{
 				// GNSS mode off
-				add_string_entry((char *)"mode", (char *)"off");
+				blues_add_string_entry((char *)"mode", (char *)"off");
 			}
 			if (blues_send_req())
 			{
@@ -316,18 +331,18 @@ bool blues_switch_gnss_mode(bool continuous_on)
 			{
 				gnss_continuous = true;
 				// Continous GNSS mode
-				add_string_entry((char *)"mode", (char *)"continuous");
-				add_number_entry((char *)"threshold", 1);
+				blues_add_string_entry((char *)"mode", (char *)"continuous");
+				blues_add_integer_entry((char *)"threshold", 1);
 			}
 			else
 			{
 				gnss_continuous = false;
 				// Periodic GNSS mode
-				add_string_entry((char *)"mode", (char *)"periodic");
-				add_number_entry((char *)"threshold", 1);
+				blues_add_string_entry((char *)"mode", (char *)"periodic");
+				blues_add_integer_entry((char *)"threshold", 1);
 			}
 			// Set location acquisition time to the sensor read time
-			add_number_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time / 2000));
+			blues_add_integer_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time / 2000));
 			if (blues_send_req())
 			{
 				request_success = true;
@@ -472,7 +487,7 @@ bool blues_get_location(void)
 		for (int try_send = 0; try_send < 3; try_send++)
 		{
 			blues_start_req((char *)"card.location.mode");
-			add_bool_entry((char *)"delete", true);
+			blues_add_bool_entry((char *)"delete", true);
 			if (blues_send_req())
 			{
 				request_success = true;
@@ -490,8 +505,8 @@ bool blues_get_location(void)
 void blues_card_restore(void)
 {
 	blues_start_req((char *)"hub.status");
-	add_bool_entry((char *)"delete", true);
-	add_bool_entry((char *)"connected", true);
+	blues_add_bool_entry((char *)"delete", true);
+	blues_add_bool_entry((char *)"connected", true);
 	blues_send_req();
 }
 

@@ -83,7 +83,7 @@ struct s_blues_settings
 	uint16_t valid_mark = 0xAA55;								 // Validity marker
 	char product_uid[256] = "com.my-company.my-name:my-project"; // Blues Product UID
 	bool conn_continous = false;								 // Use periodic connection
-	bool use_ext_sim = false;									 // Use external SIM
+	uint8_t sim_usage = 0;										 // 0 int SIM, 1 ext SIM, 2 ext int SIM, 3 int ext SIM
 	char ext_sim_apn[256] = "internet";							 // APN to be used with external SIM
 	bool motion_trigger = true;									 // Send data on motion trigger
 };
@@ -98,8 +98,17 @@ bool blues_disable_attn(void);
 bool blues_send_payload(uint8_t *data, uint16_t data_len);
 bool blues_switch_gnss_mode(bool continuous_on);
 void blues_card_restore(void);
+void blues_add_string_entry(char *type, char *value);
+void blues_add_bool_entry(char *type, bool value);
+void blues_add_integer_entry(char *type, int value);
+void blues_add_float_entry(char *type, float value);
+void blues_add_nested_string_entry(char *type, char *nested, char *value);
+void blues_add_nested_integer_entry(char *type, char *nested, int value);
+void blues_add_nested_bool_entry(char *type, char *nested, bool value);
+void blues_add_nested_float_entry(char *type, char *nested, float value);
 extern s_blues_settings g_blues_settings;
 extern char blues_response[];
+extern StaticJsonDocument<4096> note_out;
 
 // User AT commands
 void init_user_at(void);

@@ -4,10 +4,10 @@
 
 ----
 
-While WisBlock is usually associated with _**LoRa**_ and _**LoRaWAN**_, this time we are diving into the cellular data transmission using the Blues.IO Notecard. This project is about building a location tracker that can connect to both LoRaWAN and a cellular connection with a [Blues NoteCard](https://blues.io/products/notecard/)↗️.
+While WisBlock is usually associated with _**LoRa**_ and _**LoRaWAN**_, this time we are diving into the cellular data transmission using the Blues.IO NoteCard. This project is about building a location tracker that can connect to both LoRaWAN and a cellular connection with a [Blues NoteCard](https://blues.io/products/notecard/)↗️.
 
 # Overview
-When I got a [Blues Notecard](https://blues.io/products/notecard/)↗️ for some testing, the first thing was of course to connect it to the WisBlock modules. After some initial testing like connecting the Notecard to my cellular provider and sending some sensor data, I was hungry for more.    
+When I got a [Blues NoteCard](https://blues.io/products/notecard/)↗️ for some testing, the first thing was of course to connect it to the WisBlock modules. After some initial testing like connecting the NoteCard to my cellular provider and sending some sensor data, I was hungry for more.    
 
 One of the requirements that often come up for location trackers is to have a combined LoRaWAN and cellular connectivity, both working as a fallback connection for the other.
 
@@ -20,11 +20,11 @@ So, after building the [Hummingbird Sensor Network](https://github.com/beegee-to
 ----
 
 ## Hardware
-The only thing that requires some work is to setup the WisBlock system with the Blues Notecard using the [RAK13102 NoteCarrier](https://store.rakwireless.com/collections/wisblock-wireless)↗️. The RAK13102 plugs into the WisBlock Base Board IO slot, so only the RAK19007, RAK19001, RAK19010 or RAK19011 Base Boards can be used. 
+The only thing that requires some work is to setup the WisBlock system with the Blues NoteCard using the [RAK13102 NoteCarrier](https://store.rakwireless.com/collections/wisblock-wireless)↗️. The RAK13102 plugs into the WisBlock Base Board IO slot, so only the RAK19007, RAK19001, RAK19010 or RAK19011 Base Boards can be used. 
 The RAK13102 module blocks the Sensor Slots A and B, but it has a mirror of these two slots, so they still can be used.     
 Optional you can add a RAK1906 environment sensor to the WisBlock Base Board.
 
-The code in this repository supports beside of the communication to the Blues Notecard, the LoRaWAN connection and a RAK1906 environment sensor.
+The code in this repository supports beside of the communication to the Blues NoteCard, the LoRaWAN connection and a RAK1906 environment sensor.
 
 | Module | Function | Storepage |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ The latest version has an additional opening on the side for a small slider swit
 
 ## Setup
 
-You have to setup your Notecard at Blues.IO before it can be used. There are two options to setup the NoteCard.     
+You have to setup your NoteCard at Blues.IO before it can be used. There are two options to setup the NoteCard.     
 
 Option one is to follow the very good [Quickstart](https://dev.blues.io/quickstart/)↗️ guides provided by Blues.    
 
@@ -59,31 +59,33 @@ To remove settings saved from AT commands use the AT command _**`ATC+BR`**_ to d
 Connect the WisBlock USB port to your computer and connect a serial terminal application to the COM port.
 
 #### Setup the Product UID
-To connect the Blues Notecard to the NoteHub, a _**Product UID**_ is required. This product UID is created when you create your project in NoteHub as shown in [Set up Notehub](https://dev.blues.io/quickstart/notecard-quickstart/notecard-and-notecarrier-f/#set-up-notehub)↗️.    
+To connect the Blues NoteCard to the NoteHub, a _**Product UID**_ is required. This product UID is created when you create your project in NoteHub as shown in [Set up Notehub](https://dev.blues.io/quickstart/notecard-quickstart/notecard-and-notecarrier-f/#set-up-notehub)↗️.    
 
 Get the Product UID from your NoteHub project:
 <center><img src="./assets/Notehub-Product-UID.png" alt="Product UID"></center>
 
 Then use the ATC+BEUI command to save the Product UID in the WisBlock:
 
-_**`ATC+BEUI=com.my-company.my-name:my-project`**_
+_**`ATC+BUID=com.my-company.my-name:my-project`**_
 
 Replace `com.my-company.my-name:my-project` with your project EUI.
 
 The current product UID can be queried with
 
-_**`ATC+BEUI=?`**_
+_**`ATC+BUID=?`**_
 
 #### Select SIM card    
-There are two options for the Blues NoteCard to connect. The primary option is to use the eSIM that is already on the NoteCard. However, there are countries where the eSIM is not working yet. In this case you need to use an external SIM card in the RAK13102 WisBlock module. This can be a SIM card from you local cellular provider or a IoT data SIM card like for example a SIM card from [Monogoto](https://monogoto.io/)↗️ or from another provider. You can purchase a MonoGoto card together with the Blues Notecard from the RAKwireless store [IoT SIM card for WisNode Modules](https://store.rakwireless.com/products/iot-sim-card-for-wisnode-modules?variant=42658018787526)     
+There are two options for the Blues NoteCard to connect. The primary option is to use the eSIM that is already on the NoteCard. However, there are countries where the eSIM is not working yet. In this case you need to use an external SIM card in the RAK13102 WisBlock module. This can be a SIM card from you local cellular provider or a IoT data SIM card like for example a SIM card from [Monogoto](https://monogoto.io/)↗️ or from another provider. You can purchase a MonoGoto card together with the Blues NoteCard from the RAKwireless store [IoT SIM card for WisNode Modules](https://store.rakwireless.com/products/iot-sim-card-for-wisnode-modules?variant=42658018787526)     
 
 Use the AT command ATC+BSIM to select the SIM card to be used.    
 
 The syntax is _**`ATC+BSIM=<SIM>:<APN>`**_    
-`<SIM>` == 0 to use the eSIM of the NoteCard    
-`<SIM>` == 1 to use the external SIM card of the RAK13102 NoteCarrier    
+`<SIM>` == 0 to use the eSIM of the NoteCard only    
+`<SIM>` == 1 to use the external SIM card of the RAK13102 NoteCarrier only    
+`<SIM>` == 2 to use the external SIM card as primary and the eSIM of the NoteCard as secondary   
+`<SIM>` == 3 to use the external SIM card as secondary and the eSIM of the NoteCard as primary    
 
-If the external SIM card is selected, the next parameter is the APN that is required to connect the NoteCard
+If the external SIM card is selected (<SIM> is 1, 2 or 3), the next parameter is the APN that is required to connect the NoteCard
 `<APN>` e.g. _**`internet`**_ to use with the Filipino network provider SMART.    
 Several carriers will have a website dedicated to manually configuring devices, while other can be discovered using APN discovery websites like [apn.how](https://apn.how/)↗️ 
 
@@ -124,6 +126,31 @@ If required all stored Blues NoteCard settings can be deleted from the WisBlock 
 ##### ⚠️ _Requires restart or power cycle of the device_ ⚠️      
 
 The syntax is _**`AT+BR`**_     
+
+#### Reset Blues NoteCard to factory settings    
+If required the Blues NoteCard can be reset to factory default.     
+
+----
+<i><h3>⚠️ THIS WILL ERASE ALL SETTINGS IN THE NOTECARD ⚠️ </h3></i>     
+  
+----
+
+All saved settings like Product UID, connection settings, APN, ... in the NoteCard _**WILL BE ERASED**_    
+
+The syntax is _**`AT+BRES`**_     
+
+#### Get Blues NoteCard status    
+Show NoteCard connection status with _**`req:hub.status`**_.    
+
+The syntax is _**`AT+BLUES`**_     
+
+#### Send request to the NoteCard
+##### <h1>⚠️</h1> _This works only for simple requests without parameters, like hub.status or hub.sync_ ⚠️    
+
+Sends a simple request to the NoteCard and returns the response from the NoteCard
+
+The syntax is _**`AT+BREQ=<request>`**_    
+`<request>` is the NoteCard request, e.g. _**`card.version`**_ or _**`card.location`**_   
 
 ### ⚠️ _LoRaWAN Setup_ ⚠️    
 Beside of the cellular connection, you need to setup as well the LoRaWAN connection. The WisBlock solutions can be connected to any LoRaWAN server like Helium, Chirpstack, TheThingsNetwork or others. Details how to setup the device on a LNS are available in the [RAK Documentation Center]().

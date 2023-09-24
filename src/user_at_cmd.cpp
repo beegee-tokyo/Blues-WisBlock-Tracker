@@ -76,15 +76,19 @@ int at_query_blues_prod_uid(void)
 /**
  * @brief Set usage of eSIM or external SIM and APN
  *
- * @param str params as string, format 0 or 1:APN_NAME
+ * @param str params as string, format 0 ,x:APN_NAME
+ * 				0 = eSIM only
+ * 				1 = external SIM only
+ * 				2 = primary external SIM, secondary eSIM
+ * 				3 = primary eSIM, secondary external SIM
  * @return int
  * 			AT_SUCCESS is params are set correct
  * 			AT_ERRNO_PARA_NUM if params error
  */
-int at_set_blues_ext_sim(char *str)
+int at_set_blues_sim_set(char *str)
 {
 	char *param;
-	bool new_use_ext_sim;
+	uint8_t new_sim_usage;
 	char new_ext_sim_apn[256];
 
 	// Get string up to first :
@@ -93,13 +97,57 @@ int at_set_blues_ext_sim(char *str)
 	{
 		if (param[0] == '0')
 		{
-			MYLOG("USR_AT", "Enable eSIM");
-			new_use_ext_sim = false;
+			// eSIM only
+			MYLOG("USR_AT", "Enable only eSIM");
+			new_sim_usage = 0;
 		}
 		else if (param[0] == '1')
 		{
-			MYLOG("USR_AT", "Enable external SIM");
-			new_use_ext_sim = true;
+			// External SIM only
+			MYLOG("USR_AT", "Enable only external SIM");
+			new_sim_usage = 1;
+			param = strtok(NULL, ":");
+			if (param != NULL)
+			{
+				for (int i = 0; param[i] != '\0'; i++)
+				{
+					if (param[i] >= 'A' && param[i] <= 'Z') // checking for uppercase characters
+						param[i] = param[i] + 32;			// converting uppercase to lowercase
+				}
+				snprintf(new_ext_sim_apn, 256, "%s", param);
+			}
+			else
+			{
+				MYLOG("USR_AT", "Missing external SIM APN");
+				return AT_ERRNO_PARA_NUM;
+			}
+		}
+		else if (param[0] == '2')
+		{
+			// prim external SIM, sec ESIM
+			MYLOG("USR_AT", "Primary external SIM, secondary eSIM");
+			new_sim_usage = 2;
+			param = strtok(NULL, ":");
+			if (param != NULL)
+			{
+				for (int i = 0; param[i] != '\0'; i++)
+				{
+					if (param[i] >= 'A' && param[i] <= 'Z') // checking for uppercase characters
+						param[i] = param[i] + 32;			// converting uppercase to lowercase
+				}
+				snprintf(new_ext_sim_apn, 256, "%s", param);
+			}
+			else
+			{
+				MYLOG("USR_AT", "Missing external SIM APN");
+				return AT_ERRNO_PARA_NUM;
+			}
+		}
+		else if (param[0] == '3')
+		{
+			// prim ESIM, sec external SIM
+			MYLOG("USR_AT", "Primary eSIM, secondary external SIM");
+			new_sim_usage = 2;
 			param = strtok(NULL, ":");
 			if (param != NULL)
 			{
@@ -124,9 +172,9 @@ int at_set_blues_ext_sim(char *str)
 	}
 
 	bool need_save = false;
-	if (new_use_ext_sim != g_blues_settings.use_ext_sim)
+	if (new_sim_usage != g_blues_settings.sim_usage)
 	{
-		g_blues_settings.use_ext_sim = new_use_ext_sim;
+		g_blues_settings.sim_usage = new_sim_usage;
 		need_save = true;
 	}
 	if (strcmp(new_ext_sim_apn, g_blues_settings.product_uid) != 0)
@@ -147,18 +195,27 @@ int at_set_blues_ext_sim(char *str)
  *
  * @return int AT_SUCCESS
  */
-int at_query_blues_ext_sim(void)
+int at_query_blues_sim_set(void)
 {
-	if (g_blues_settings.use_ext_sim)
+	switch (g_blues_settings.sim_usage)
 	{
-		snprintf(g_at_query_buf, ATQUERY_SIZE, "1:%s", g_blues_settings.ext_sim_apn);
-		MYLOG("USR_AT", "Using external SIM with APN = %s", g_blues_settings.ext_sim_apn);
-	}
-	else
-	{
+	case 0:
+		// USING BLUES eSIM CARD
 		snprintf(g_at_query_buf, ATQUERY_SIZE, "0");
-		MYLOG("USR_AT", "Using eSIM");
+		MYLOG("USR_AT", "Using eSIM only");
+		break;
+	case 1:
+		// USING EXTERNAL SIM CARD sonly
+		snprintf(g_at_query_buf, ATQUERY_SIZE, "%d:%s", g_blues_settings.sim_usage, g_blues_settings.ext_sim_apn);
+		MYLOG("USR_AT", "Using external SIM with APN = %s only", g_blues_settings.ext_sim_apn);
+		break;
+	default:
+		// USING  both SIM cards
+		snprintf(g_at_query_buf, ATQUERY_SIZE, "%d:%s", g_blues_settings.sim_usage, g_blues_settings.ext_sim_apn);
+		MYLOG("USR_AT", "Using external SIM with APN = %s as %s", g_blues_settings.ext_sim_apn, g_blues_settings.sim_usage == 2 ? "primary" : "secondary");
+		break;
 	}
+
 	return AT_SUCCESS;
 }
 
@@ -289,10 +346,26 @@ static int at_reset_blues_settings(void)
 	return AT_SUCCESS;
 }
 
+/**
+ * @brief Force a factory reset on the Blues NotCard
+ *
+ * @return int AT_SUCCESS
+ */
 static int at_blues_factory(void)
 {
 	blues_card_restore();
-	 return AT_SUCCESS;
+	return AT_SUCCESS;
+}
+
+/**
+ * @brief Switch on BLE
+ *
+ * @return int AT_SUCCESS
+ */
+static int at_ble_on(void)
+{
+	restart_advertising(30);
+	return AT_SUCCESS;
 }
 
 /**
@@ -325,7 +398,7 @@ bool read_blues_settings(void)
 		{
 			structure_valid = true;
 			MYLOG("USR_AT", "Valid Blues settings found, Blues Product UID = %s", g_blues_settings.product_uid);
-			if (g_blues_settings.use_ext_sim)
+			if (g_blues_settings.sim_usage)
 			{
 				MYLOG("USR_AT", "Using external SIM with APN = %s", g_blues_settings.ext_sim_apn);
 			}
@@ -348,7 +421,7 @@ bool read_blues_settings(void)
 		// g_blues_settings.valid_mark = 0xAA55;										// Validity marker
 		// sprintf(g_blues_settings.product_uid, "com.my-company.my-name:my-project"); // Blues Product UID
 		// g_blues_settings.conn_continous = false;									// Use periodic connection
-		// g_blues_settings.use_ext_sim = false;										// Use external SIM
+		// g_blues_settings.sim_usage = false;										// Use external SIM
 		// sprintf(g_blues_settings.ext_sim_apn, "-");									// APN to be used with external SIM
 		// g_blues_settings.motion_trigger = true;										// Send data on motion trigger
 		// save_blues_settings();
@@ -388,7 +461,7 @@ int at_blues_req(char *str)
 		snprintf(g_at_query_buf, ATQUERY_SIZE, "Request creation failed");
 		return AT_ERRNO_EXEC_FAIL;
 	}
-	
+
 	if (!blues_send_req())
 	{
 		snprintf(g_at_query_buf, ATQUERY_SIZE, "Send request failed");
@@ -408,13 +481,14 @@ atcmd_t g_user_at_cmd_new_list[] = {
 	/*|    CMD    |     AT+CMD?      |    AT+CMD=?    |  AT+CMD=value |  AT+CMD  | Permissions |*/
 	// Module commands
 	{"+BUID", "Set/get the Blues product UID", at_query_blues_prod_uid, at_set_blues_prod_uid, NULL, "RW"},
-	{"+BSIM", "Set/get Blues SIM settings", at_query_blues_ext_sim, at_set_blues_ext_sim, NULL, "RW"},
+	{"+BSIM", "Set/get Blues SIM settings", at_query_blues_sim_set, at_set_blues_sim_set, NULL, "RW"},
 	{"+BMOD", "Set/get Blues NoteCard connection modes", at_query_blues_mode, at_set_blues_mode, NULL, "RW"},
 	{"+BTRIG", "Set/get Blues send trigger", at_query_blues_trigger, at_set_blues_trigger, NULL, "RW"},
 	{"+BR", "Remove all Blues Settings", NULL, NULL, at_reset_blues_settings, "W"},
 	{"+BLUES", "Blues Notecard Status", at_blues_status, NULL, NULL, "R"},
 	{"+BREQ", "Send a Blues Notecard Request", NULL, at_blues_req, NULL, "W"},
 	{"+BRES", "Factory reset Blues Notecard Request", NULL, NULL, at_blues_factory, "W"},
+	{"+BLE", "Switch on BLE advertising", NULL, NULL, at_ble_on, "W"},
 };
 
 /** Number of user defined AT commands */

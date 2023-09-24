@@ -26,22 +26,24 @@ uint8_t note_i2c_addr = 0x17;
 /** Callback for ATTN signal */
 void blues_attn_cb(void);
 
+// Forward declaration
+void blues_I2C_RST(void);
+
 /** Base64 helper */
 static const char basis_64[] =
 	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
-
 /**
  * @brief Transmit data to the NoteCard over I2C
- * 
- * @param device_address_ NoteCard I2C address, default is 0x17 
+ *
+ * @param device_address_ NoteCard I2C address, default is 0x17
  * @param buffer_ Buffer with the data to send
  * @param size_ Size of buffer
  * @return bool true if no errors, otherwise false
  */
 bool blues_I2C_TX(uint16_t device_address_, uint8_t *buffer_, uint16_t size_)
 {
-	 bool result = true;
+	bool result = true;
 	uint8_t transmission_error = 0;
 
 	Wire.beginTransmission(static_cast<uint8_t>(device_address_));
@@ -185,7 +187,7 @@ bool blues_I2C_RX(uint16_t device_address_, uint8_t *buffer_, uint16_t requested
 
 /**
  * @brief Restart I2C bus
- * 
+ *
  */
 void blues_I2C_RST(void)
 {
@@ -205,6 +207,7 @@ void blues_I2C_RST(void)
 bool blues_start_req(char *request)
 {
 	note_out.clear();
+	note_resp.clear();
 	note_out["req"] = request;
 	// MYLOG("BLUES","Added string %s", request);
 	// serializeJson(note_out, Serial);
@@ -218,7 +221,7 @@ bool blues_start_req(char *request)
  * @param type char * name
  * @param value char * value
  */
-void add_string_entry(char *type, char *value)
+void blues_add_string_entry(char *type, char *value)
 {
 	note_out[type] = value;
 	// MYLOG("BLUES", "Added string %s", value);
@@ -232,7 +235,7 @@ void add_string_entry(char *type, char *value)
  * @param type char * name
  * @param value bool value
  */
-void add_bool_entry(char *type, bool value)
+void blues_add_bool_entry(char *type, bool value)
 {
 	note_out[type] = value;
 	// MYLOG("BLUES", "Added boolean %s", value ? "true" : "false");
@@ -246,10 +249,24 @@ void add_bool_entry(char *type, bool value)
  * @param type char * name
  * @param value integer value
  */
-void add_number_entry(char *type, int value)
+void blues_add_integer_entry(char *type, int value)
 {
 	note_out[type] = value;
 	// MYLOG("BLUES", "Added number %d", value);
+	// serializeJson(note_out, Serial);
+	// Serial.println("");
+}
+
+/**
+ * @brief Add float entry to JSON document
+ *
+ * @param type char * name
+ * @param value float value
+ */
+void blues_add_float_entry(char *type, float value)
+{
+	note_out[type] = value;
+	// MYLOG("BLUES", "Added float %f", value);
 	// serializeJson(note_out, Serial);
 	// Serial.println("");
 }
@@ -261,10 +278,55 @@ void add_number_entry(char *type, int value)
  * @param nested char * nested name
  * @param value char * value
  */
-void add_string_nested_entry(char *type, char *nested, char *value)
+void blues_add_nested_string_entry(char *type, char *nested, char *value)
 {
 	note_out[type][nested] = value;
 	// MYLOG("BLUES", "Added string %s as [%s][%s]", value, type, value);
+	// serializeJson(note_out, Serial);
+	// Serial.println("");
+}
+
+/**
+ * @brief Add nested integer entry to JSON document
+ *
+ * @param type char * name
+ * @param nested char * nested name
+ * @param value integer value
+ */
+void blues_add_nested_integer_entry(char *type, char *nested, int value)
+{
+	note_out[type][nested] = value;
+	// MYLOG("BLUES", "Added integer %d as [%s][%s]", value, type, value);
+	// serializeJson(note_out, Serial);
+	// Serial.println("");
+}
+
+/**
+ * @brief Add nested bool entry to JSON document
+ *
+ * @param type char * name
+ * @param nested char * nested name
+ * @param value char * value
+ */
+void blues_add_nested_bool_entry(char *type, char *nested, bool value)
+{
+	note_out[type][nested] = value;
+	// MYLOG("BLUES", "Added bool %s as [%s][%s]", value ? "true" : "false", value, type, value);
+	// serializeJson(note_out, Serial);
+	// Serial.println("");
+}
+
+/**
+ * @brief Add nested float entry to JSON document
+ *
+ * @param type char * name
+ * @param nested char * nested name
+ * @param value float value
+ */
+void blues_add_nested_float_entry(char *type, char *nested, float value)
+{
+	note_out[type][nested] = value;
+	// MYLOG("BLUES", "Added float %f as [%s][%s]", value, type, value);
 	// serializeJson(note_out, Serial);
 	// Serial.println("");
 }
@@ -317,8 +379,6 @@ bool blues_send_req(void)
 
 	// Loop, building a reply buffer out of received chunks.  We'll build the reply in the same
 	// buffer we used to transmit, and will grow it as necessary.
-	size_t growlen = 128;
-	size_t jsonbufAllocLen = growlen;
 	bool receivedNewline = false;
 	size_t jsonbufLen = 0;
 	uint16_t chunkLen = 0;
@@ -327,20 +387,6 @@ bool blues_send_req(void)
 
 	while (true)
 	{
-		// Adjust the buffer pointer as necessary to read this next chunk
-		if (jsonbufLen + chunkLen > jsonbufAllocLen)
-		{
-			if (chunkLen > growlen)
-			{
-				jsonbufAllocLen += chunkLen;
-			}
-			else
-			{
-				jsonbufAllocLen += growlen;
-			}
-			jsonbuf = jsonbuf + jsonbufAllocLen;
-		}
-
 		// Read the chunk
 		uint32_t available;
 		delay(6);
@@ -380,12 +426,20 @@ bool blues_send_req(void)
 			break;
 		}
 
-		// If we've timed out and nothing's available, exit
-		if ((millis() - startMs) >= 30000)
+		// Check for buffer overflow
+		if (jsonbufLen >= 4096)
 		{
-			MYLOG("BLUES", "No Response");
-			return false;
+			MYLOG("BLUES", "blues_I2C_RX buffer overflow");
+			break;
 		}
+
+		if (chunkLen)
+			// If we've timed out and nothing's available, exit
+			if ((millis() - startMs) >= 30000)
+			{
+				MYLOG("BLUES", "No Response");
+				return false;
+			}
 
 		// Delay, simply waiting for the Note to process the request
 		delay(50);
@@ -401,7 +455,7 @@ bool blues_send_req(void)
 
 /**
  * @brief Encode a char buffer to Base64
- * 
+ *
  * @param encoded (out) encoded string
  * @param string char buffer for encoding
  * @param len length of buffer
