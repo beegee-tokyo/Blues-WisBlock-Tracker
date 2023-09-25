@@ -114,5 +114,4 @@ extern StaticJsonDocument<4096> note_out;
 void init_user_at(void);
 bool read_blues_settings(void);
 void save_blues_settings(void);
-
 #endif // _MAIN_H_

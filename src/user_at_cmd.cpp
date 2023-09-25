@@ -448,6 +448,19 @@ void save_blues_settings(void)
 	MYLOG("USR_AT", "Saved Blues Settings");
 }
 
+#define REQ_PRINTF(...)                     \
+	do                                      \
+	{                                       \
+		PRINTF(__VA_ARGS__);                \
+		PRINTF("\n");                       \
+		Serial.flush();                     \
+		if (g_ble_uart_is_connected)        \
+		{                                   \
+			g_ble_uart.printf(__VA_ARGS__); \
+			g_ble_uart.printf("\n");        \
+		}                                   \
+	} while (0)
+
 int at_blues_req(char *str)
 {
 	for (int i = 0; str[i] != '\0'; i++)
@@ -467,9 +480,8 @@ int at_blues_req(char *str)
 		snprintf(g_at_query_buf, ATQUERY_SIZE, "Send request failed");
 		return AT_ERRNO_EXEC_FAIL;
 	}
-	// Copy response for AT response
-	snprintf(g_at_query_buf, ATQUERY_SIZE, "%s", blues_response);
-	AT_PRINTF("%s\n", blues_response);
+	// Print out response as AT response
+	REQ_PRINTF(">>>>\n%s\n<<<<", blues_response);
 	return AT_SUCCESS;
 }
 
