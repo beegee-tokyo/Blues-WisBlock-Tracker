@@ -342,7 +342,7 @@ bool blues_switch_gnss_mode(bool continuous_on)
 				blues_add_integer_entry((char *)"threshold", 1);
 			}
 			// Set location acquisition time to the sensor read time
-			blues_add_integer_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time / 2000));
+			blues_add_integer_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time / 1000));
 			if (blues_send_req())
 			{
 				request_success = true;
