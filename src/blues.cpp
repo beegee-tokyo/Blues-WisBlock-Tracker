@@ -431,26 +431,56 @@ bool blues_get_location(void)
 					// Try to set LoRaWAN band automatically
 					if (strcmp(country, "PH") == 0)
 					{
-						MYLOG("BLUES", "Found PH, use band 10");
+						if (g_lorawan_settings.lora_region != 10)
+						{
+							MYLOG("BLUES", "Found PH, switch to band 10");
+							g_lorawan_settings.lora_region = 10;
+							init_lorawan(true);
+						}
 					}
 					else if (strcmp(country, "JP") == 0)
 					{
-						MYLOG("BLUES", "Found JP, use band 8");
+						if (g_lorawan_settings.lora_region != 8)
+						{
+							MYLOG("BLUES", "Found JP, switch to band 8");
+							g_lorawan_settings.lora_region = 8;
+							init_lorawan(true);
+						}
 					}
 					else if (strcmp(country, "US") == 0)
 					{
-						MYLOG("BLUES", "Found US, use band 5");
+						if (g_lorawan_settings.lora_region != 5)
+						{
+							MYLOG("BLUES", "Found US, switch to band 5");
+							g_lorawan_settings.lora_region = 5;
+							init_lorawan(true);
+						}
 					}
 					else if (strcmp(country, "AU") == 0)
 					{
-						MYLOG("BLUES", "Found AU, use band 6");
+						if (g_lorawan_settings.lora_region != 6)
+						{
+							MYLOG("BLUES", "Found AU, switch to band 6");
+							g_lorawan_settings.lora_region = 6;
+							init_lorawan(true);
+						}
 					}
-					else if (strcmp(country, "DE") == 0)
+					else if ((strcmp(country, "DE") == 0) ||
+							 (strcmp(country, "FR") == 0) ||
+							 (strcmp(country, "IT") == 0) ||
+							 (strcmp(country, "NL") == 0) ||
+							 (strcmp(country, "GB") == 0))
 					{
-						MYLOG("BLUES", "Found JP, use band 8");
+						if (g_lorawan_settings.lora_region != 4)
+						{
+							MYLOG("BLUES", "Found Europe, switch to band 4");
+							g_lorawan_settings.lora_region = 4;
+							init_lorawan(true);
+						}
 					}
 				}
 
+				// If no location from GNSS use the tower location
 				if (!got_gnss_location)
 				{
 					float blues_latitude = note_resp["lat"];
@@ -592,7 +622,7 @@ bool blues_disable_attn(void)
 }
 
 /**
- * @brief Get the reason for the ATTN interrup
+ * @brief Get the reason for the ATTN interrupt
  *  /// \todo work in progress
  * @return String reason /// \todo return value not final yet
  */
