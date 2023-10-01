@@ -147,7 +147,7 @@ int at_set_blues_sim_set(char *str)
 		{
 			// prim ESIM, sec external SIM
 			MYLOG("USR_AT", "Primary eSIM, secondary external SIM");
-			new_sim_usage = 2;
+			new_sim_usage = 3;
 			param = strtok(NULL, ":");
 			if (param != NULL)
 			{
