@@ -236,13 +236,13 @@ int at_set_blues_mode(char *str)
 	{
 		MYLOG("USR_AT", "Set minimum connection mode");
 		new_connection_mode = false;
-		blues_disable_attn();
+		// blues_disable_attn();
 	}
 	else if (str[0] == '1')
 	{
 		MYLOG("USR_AT", "Set continuous connection mode");
 		new_connection_mode = true;
-		blues_enable_attn();
+		// blues_enable_attn();
 	}
 	else
 	{
@@ -292,13 +292,13 @@ int at_set_blues_trigger(char *str)
 	{
 		MYLOG("USR_AT", "Disable motion trigger");
 		new_motion_trigger = false;
-		blues_disable_attn();
+		// blues_disable_attn();
 	}
 	else if (str[0] == '1')
 	{
 		MYLOG("USR_AT", "Enable motion trigger");
 		new_motion_trigger = true;
-		blues_enable_attn();
+		// blues_enable_attn();
 	}
 	else
 	{

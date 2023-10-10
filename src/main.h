@@ -60,10 +60,12 @@ void ble_data_handler(void) __attribute__((weak));
 void lora_data_handler(void);
 
 // Wakeup flags
-#define USE_CELLULAR 0b1000000000000000
+#define USE_CELLULAR   0b1000000000000000
 #define N_USE_CELLULAR 0b0111111111111111
-#define BLUES_ATTN 0b0100000000000000
-#define N_BLUES_ATTN 0b1011111111111111
+#define BLUES_ATTN     0b0100000000000000
+#define N_BLUES_ATTN   0b1011111111111111
+#define GNSS_FINISH    0b0010000000000000
+#define N_GNSS_FINISH  0b1101111111111111
 
 // Cayenne LPP Channel numbers per sensor value
 #define LPP_CHANNEL_BATT 1		 // Base Board

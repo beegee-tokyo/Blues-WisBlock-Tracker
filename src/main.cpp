@@ -34,6 +34,11 @@ bool has_blues = false;
 SoftwareTimer delayed_sending;
 void delayed_cellular(TimerHandle_t unused);
 
+// SoftwareTimer wait_gnss;
+// void waited_location(TimerHandle_t unused);
+
+uint8_t send_counter = 0;
+
 /**
  * @brief Initial setup of the application (before LoRaWAN and BLE setup)
  *
@@ -100,6 +105,8 @@ bool init_app(void)
 
 	delayed_sending.begin(15000, delayed_cellular, NULL, false);
 
+	// wait_gnss.begin(30000, waited_location, NULL, false);
+
 	// Start the send interval timer and send a first message
 	if (!g_lorawan_settings.auto_join)
 	{
@@ -132,7 +139,20 @@ void app_event_handler(void)
 	{
 		g_task_event_type &= N_STATUS;
 
-		MYLOG("APP", "Timer wakeup");
+		MYLOG("APP", "Timer wakeup, start GNSS");
+
+	// 	blues_switch_gnss_mode(true);
+
+	// 	wait_gnss.start();
+	// }
+
+	// // GNSS finished event
+	// if ((g_task_event_type & GNSS_FINISH) == GNSS_FINISH)
+	// {
+	// 	g_task_event_type &= N_GNSS_FINISH;
+
+	// 	MYLOG("APP", "GNSS wait finished");
+	// 	blues_switch_gnss_mode(false);
 
 		// Reset the packet
 		g_solution_data.reset();
@@ -172,6 +192,15 @@ void app_event_handler(void)
 				{
 				case LMH_SUCCESS:
 					MYLOG("APP", "Packet enqueued");
+
+					// Periodically send a packet over cellular as well
+					// Resets automatically if LoRaWAN packet got no ACK
+					if (send_counter >= 20)
+					{
+						MYLOG("APP", "Start cellular heartbeat sending");
+						// Send over cellular connection
+						delayed_sending.start();
+					}
 					break;
 				case LMH_BUSY:
 					re_init_lorawan();
@@ -252,6 +281,7 @@ void app_event_handler(void)
 	// Send over Blues event
 	if ((g_task_event_type & USE_CELLULAR) == USE_CELLULAR)
 	{
+		send_counter = 0;
 		g_task_event_type &= N_USE_CELLULAR;
 		// Send over cellular connection
 		MYLOG("APP", "Get hub sync status:");
@@ -294,14 +324,7 @@ void app_event_handler(void)
 		blues_start_req((char *)"card.time");
 		blues_send_req();
 
-		// req = notecard.newRequest("card.attn");
-		// if (!blues_send_req())
-		// {
-		// 	MYLOG("BLUES", "card.attn request failed");
-		// 	return false;
-		// }
-
-		blues_enable_attn();
+		// blues_enable_attn();
 	}
 }
 
@@ -386,16 +409,27 @@ void lora_data_handler(void)
 		else
 		{
 			send_fail = 0;
+			send_counter++;
 		}
 	}
 }
 
 /**
  * @brief Timer callback to decouple the LoRaWAN sending and the cellular sending
- * 
- * @param unused 
+ *
+ * @param unused
  */
 void delayed_cellular(TimerHandle_t unused)
 {
 	api_wake_loop(USE_CELLULAR);
+}
+
+/**
+ * @brief Timer callback to decouple the LoRaWAN sending and the cellular sending
+ *
+ * @param unused
+ */
+void waited_location(TimerHandle_t unused)
+{
+	api_wake_loop(GNSS_FINISH);
 }
