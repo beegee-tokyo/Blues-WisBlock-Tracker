@@ -101,6 +101,7 @@ bool init_app(void)
 	pinMode(WB_IO2, OUTPUT);
 	digitalWrite(WB_IO2, LOW);
 
+	MYLOG("APP", "restart_advertising");
 	restart_advertising(30);
 
 	delayed_sending.begin(15000, delayed_cellular, NULL, false);
@@ -118,7 +119,14 @@ bool init_app(void)
 		}
 	}
 
+	// Check send interval, if not set (0), set it to 600 seconds
+	if (g_lorawan_settings.send_repeat_time == 0)
+	{
+		g_lorawan_settings.send_repeat_time = 600000;
+	}
+
 	// Don't wait for join to start the application timer
+	MYLOG("APP", "api_timer_start");
 	api_timer_start();
 	api_wake_loop(STATUS);
 
@@ -141,18 +149,18 @@ void app_event_handler(void)
 
 		MYLOG("APP", "Timer wakeup, start GNSS");
 
-	// 	blues_switch_gnss_mode(true);
+		// 	blues_switch_gnss_mode(true);
 
-	// 	wait_gnss.start();
-	// }
+		// 	wait_gnss.start();
+		// }
 
-	// // GNSS finished event
-	// if ((g_task_event_type & GNSS_FINISH) == GNSS_FINISH)
-	// {
-	// 	g_task_event_type &= N_GNSS_FINISH;
+		// // GNSS finished event
+		// if ((g_task_event_type & GNSS_FINISH) == GNSS_FINISH)
+		// {
+		// 	g_task_event_type &= N_GNSS_FINISH;
 
-	// 	MYLOG("APP", "GNSS wait finished");
-	// 	blues_switch_gnss_mode(false);
+		// 	MYLOG("APP", "GNSS wait finished");
+		// 	blues_switch_gnss_mode(false);
 
 		// Reset the packet
 		g_solution_data.reset();
@@ -283,31 +291,39 @@ void app_event_handler(void)
 	{
 		send_counter = 0;
 		g_task_event_type &= N_USE_CELLULAR;
-		// Send over cellular connection
-		MYLOG("APP", "Get hub sync status:");
-		blues_hub_status();
 
-		g_solution_data.addDevID(0, &g_lorawan_settings.node_device_eui[4]);
-		blues_send_payload(g_solution_data.getBuffer(), g_solution_data.getSize());
-
-		// Request sync with NoteHub
-		blues_start_req((char *)"hub.sync");
-		blues_send_req();
-
-		if (!g_lpwan_has_joined)
+		if (has_blues)
 		{
-			send_fail++;
-			MYLOG("APP", "Cellular count w/o Join %d", send_fail);
+			// Send over cellular connection
+			MYLOG("APP", "Get hub sync status:");
+			blues_hub_status();
+
+			g_solution_data.addDevID(0, &g_lorawan_settings.node_device_eui[4]);
+			blues_send_payload(g_solution_data.getBuffer(), g_solution_data.getSize());
+
+			// Request sync with NoteHub
+			blues_start_req((char *)"hub.sync");
+			blues_send_req();
+
+			if (!g_lpwan_has_joined)
+			{
+				send_fail++;
+				MYLOG("APP", "Cellular count w/o Join %d", send_fail);
+			}
+			// Check how many times we send over cellular data and retry to join LNS after 10 times failing
+			if ((send_fail >= 10) && g_lorawan_settings.lorawan_enable)
+			{
+				// Try to rejoin
+				MYLOG("APP", "Retry to join LNS");
+				send_fail = 0;
+				// int8_t init_result = re_init_lorawan();
+				g_lpwan_has_joined = false;
+				lmh_join();
+			}
 		}
-		// Check how many times we send over cellular data and retry to join LNS after 10 times failing
-		if ((send_fail >= 10) && g_lorawan_settings.lorawan_enable)
+		else
 		{
-			// Try to rejoin
-			MYLOG("APP", "Retry to join LNS");
-			send_fail = 0;
-			// int8_t init_result = re_init_lorawan();
-			g_lpwan_has_joined = false;
-			lmh_join();
+			MYLOG("APP", "Skip USE_CELLULAR, no NoteCard available");
 		}
 	}
 
@@ -315,16 +331,23 @@ void app_event_handler(void)
 	if ((g_task_event_type & BLUES_ATTN) == BLUES_ATTN)
 	{
 		g_task_event_type &= N_BLUES_ATTN;
-		// Send over cellular connection
-		MYLOG("APP", "Blues ATTN event");
+		if (has_blues)
+		{
+			// Send over cellular connection
+			MYLOG("APP", "Blues ATTN event");
 
-		blues_start_req((char *)"card.attn");
-		blues_send_req();
+			blues_start_req((char *)"card.attn");
+			blues_send_req();
 
-		blues_start_req((char *)"card.time");
-		blues_send_req();
+			blues_start_req((char *)"card.time");
+			blues_send_req();
 
-		// blues_enable_attn();
+			// blues_enable_attn();
+		}
+		else
+		{
+			MYLOG("APP", "Skip BLUES_ATTN, no NoteCard available");
+		}
 	}
 }
 

@@ -32,7 +32,7 @@ bool gnss_continuous = true;
 bool init_blues(void)
 {
 	Wire.begin();
-
+	Wire.setClock(100000);
 	// Get the ProductUID from the saved settings
 	// If no settings are found, use NoteCard internal settings!
 	if (read_blues_settings())
@@ -117,7 +117,7 @@ bool init_blues(void)
 				request_success = true;
 				break;
 			}
-			
+
 			request_success = false;
 			MYLOG("BLUES", "card.location.mode delete last location");
 			// Clear last GPS location
