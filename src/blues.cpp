@@ -9,16 +9,15 @@
  *
  */
 #include "main.h"
+#include <blues-minimal-i2c.h>
+
+// I2C functions for Blues NoteCard
+RAK_BLUES rak_blues;
+
 #ifndef PRODUCT_UID
 #define PRODUCT_UID "com.my-company.my-name:my-project"
 #endif
 #define myProductID PRODUCT_UID
-
-/** Buffer for serialized JSON response */
-char blues_response[4096];
-
-// I2C functions for Blues NoteCard
-#include "blues_i2c.h"
 
 /** Flag if GNSS is in continuous or periodic mode */
 bool gnss_continuous = true;
@@ -50,24 +49,23 @@ bool init_blues(void)
 		MYLOG("BLUES", "Set Product ID and connection mode");
 		for (int try_send = 0; try_send < 3; try_send++)
 		{
-			if (blues_start_req((char *)"hub.set"))
+			if (rak_blues.start_req((char *)"hub.set"))
 			{
-				blues_add_string_entry((char *)"product", g_blues_settings.product_uid);
+				rak_blues.add_string_entry((char *)"product", g_blues_settings.product_uid);
 				if (g_blues_settings.conn_continous)
 				{
-					blues_add_string_entry((char *)"mode", (char *)"continuous");
+					rak_blues.add_string_entry((char *)"mode", (char *)"continuous");
 				}
 				else
 				{
-					blues_add_string_entry((char *)"mode", (char *)"minimum");
+					rak_blues.add_string_entry((char *)"mode", (char *)"minimum");
 				}
 				// // Set sync time to 20 times the sensor read time
-				// blues_add_integer_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time * 20 / 1000));
-				// blues_add_bool_entry((char *)"heartbeat", true);
+				// add_int32_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time * 20 / 1000));
+				// add_bool_entry((char *)"heartbeat", true);
 
-				if (blues_send_req())
+				if (rak_blues.send_req())
 				{
-					MYLOG("BLUES", "Response: %s", blues_response);
 					request_success = true;
 					break;
 				}
@@ -84,21 +82,20 @@ bool init_blues(void)
 		// Enable motion trigger
 		for (int try_send = 0; try_send < 3; try_send++)
 		{
-			if (blues_start_req((char *)"card.motion.mode"))
+			if (rak_blues.start_req((char *)"card.motion.mode"))
 			{
-				blues_add_bool_entry((char *)"start", true);
+				rak_blues.add_bool_entry((char *)"start", true);
 
 				// Set sensitivity 25Hz, +/- 16G range, 7.8 milli-G sensitivity
-				blues_add_integer_entry((char *)"sensitivity", 1);
+				rak_blues.add_int32_entry((char *)"sensitivity", 1);
 				// Set sensitivity 1.6Hz, +/- 2G range, 1 milli-G sensitivity
-				// blues_add_integer_entry((char *)"sensitivity", -1);
+				// add_int32_entry((char *)"sensitivity", -1);
 
-				if (blues_send_req())
+				if (rak_blues.send_req())
 				{
 					request_success = true;
 					break;
 				}
-				MYLOG("BLUES", "Response: %s", blues_response);
 			}
 			delay(100);
 		}
@@ -123,9 +120,9 @@ bool init_blues(void)
 			// Clear last GPS location
 			for (int try_send = 0; try_send < 3; try_send++)
 			{
-				blues_start_req((char *)"card.location.mode");
-				blues_add_bool_entry((char *)"delete", true);
-				if (blues_send_req())
+				rak_blues.start_req((char *)"card.location.mode");
+				rak_blues.add_bool_entry((char *)"delete", true);
+				if (rak_blues.send_req())
 				{
 					request_success = true;
 					break;
@@ -147,10 +144,10 @@ bool init_blues(void)
 		pinMode(WB_IO5, INPUT);
 		if (g_blues_settings.motion_trigger)
 		{
-			if (blues_start_req((char *)"card.attn"))
+			if (rak_blues.start_req((char *)"card.attn"))
 			{
-				blues_add_string_entry((char *)"mode", (char *)"disarm");
-				if (!blues_send_req())
+				rak_blues.add_string_entry((char *)"mode", (char *)"disarm");
+				if (!rak_blues.send_req())
 				{
 					MYLOG("BLUES", "card.attn request failed");
 				}
@@ -172,34 +169,34 @@ bool init_blues(void)
 		MYLOG("BLUES", "Set SIM and APN");
 		for (int try_send = 0; try_send < 3; try_send++)
 		{
-			if (blues_start_req((char *)"card.wireless"))
+			if (rak_blues.start_req((char *)"card.wireless"))
 			{
-				blues_add_string_entry((char *)"mode", (char *)"auto");
+				rak_blues.add_string_entry((char *)"mode", (char *)"auto");
 
 				switch (g_blues_settings.sim_usage)
 				{
 				case 0:
 					// USING BLUES eSIM CARD
-					blues_add_string_entry((char *)"method", (char *)"primary");
+					rak_blues.add_string_entry((char *)"method", (char *)"primary");
 					break;
 				case 1:
 					// USING EXTERNAL SIM CARD only
-					blues_add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
-					blues_add_string_entry((char *)"method", (char *)"secondary");
+					rak_blues.add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
+					rak_blues.add_string_entry((char *)"method", (char *)"secondary");
 					break;
 				case 2:
 					// USING EXTERNAL SIM CARD as primary
-					blues_add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
-					blues_add_string_entry((char *)"method", (char *)"dual-secondary-primary");
+					rak_blues.add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
+					rak_blues.add_string_entry((char *)"method", (char *)"dual-secondary-primary");
 					break;
 				case 3:
 					// USING EXTERNAL SIM CARD as secondary
-					blues_add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
-					blues_add_string_entry((char *)"method", (char *)"dual-primary-secondary");
+					rak_blues.add_string_entry((char *)"apn", g_blues_settings.ext_sim_apn);
+					rak_blues.add_string_entry((char *)"method", (char *)"dual-primary-secondary");
 					break;
 				}
 
-				if (blues_send_req())
+				if (rak_blues.send_req())
 				{
 					request_success = true;
 					break;
@@ -218,15 +215,15 @@ bool init_blues(void)
 		MYLOG("BLUES", "Set WiFi");
 		for (int try_send = 0; try_send < 3; try_send++)
 		{
-			if (blues_start_req((char *)"card.wifi"))
+			if (rak_blues.start_req((char *)"card.wifi"))
 			{
-				blues_add_string_entry((char *)"ssid", (char *)"-");
-				blues_add_string_entry((char *)"password", (char *)"-");
-				blues_add_string_entry((char *)"name", (char *)"RAK-");
-				blues_add_string_entry((char *)"org", (char *)"RAK-PH");
-				blues_add_bool_entry((char *)"start", false);
+				rak_blues.add_string_entry((char *)"ssid", (char *)"-");
+				rak_blues.add_string_entry((char *)"password", (char *)"-");
+				rak_blues.add_string_entry((char *)"name", (char *)"RAK-");
+				rak_blues.add_string_entry((char *)"org", (char *)"RAK-PH");
+				rak_blues.add_bool_entry((char *)"start", false);
 
-				if (blues_send_req())
+				if (rak_blues.send_req())
 				{
 					request_success = true;
 					break;
@@ -244,9 +241,9 @@ bool init_blues(void)
 
 	for (int try_send = 0; try_send < 3; try_send++)
 	{
-		if (blues_start_req((char *)"card.version"))
+		if (rak_blues.start_req((char *)"card.version"))
 		{
-			if (blues_send_req())
+			if (rak_blues.send_req())
 			{
 				break;
 			}
@@ -267,24 +264,24 @@ bool blues_send_payload(uint8_t *data, uint16_t data_len)
 {
 	char payload_b86[255];
 
-	if (blues_start_req((char *)"note.add"))
+	if (rak_blues.start_req((char *)"note.add"))
 	{
-		blues_add_string_entry((char *)"file", (char *)"data.qo");
-		blues_add_bool_entry((char *)"sync", true);
+		rak_blues.add_string_entry((char *)"file", (char *)"data.qo");
+		rak_blues.add_bool_entry((char *)"sync", true);
 		char node_id[24];
 		sprintf(node_id, "%02x%02x%02x%02x%02x%02x%02x%02x",
 				g_lorawan_settings.node_device_eui[0], g_lorawan_settings.node_device_eui[1],
 				g_lorawan_settings.node_device_eui[2], g_lorawan_settings.node_device_eui[3],
 				g_lorawan_settings.node_device_eui[4], g_lorawan_settings.node_device_eui[5],
 				g_lorawan_settings.node_device_eui[6], g_lorawan_settings.node_device_eui[7]);
-		blues_add_nested_string_entry((char *)"body", (char *)"dev_eui", node_id);
+		rak_blues.add_nested_string_entry((char *)"body", (char *)"dev_eui", node_id);
 
-		myJB64Encode(payload_b86, (const char *)data, data_len);
+		rak_blues.myJB64Encode(payload_b86, (const char *)data, data_len);
 
-		blues_add_string_entry((char *)"payload", payload_b86);
+		rak_blues.add_string_entry((char *)"payload", payload_b86);
 
 		MYLOG("BLUES", "Finished parsing");
-		if (!blues_send_req())
+		if (!rak_blues.send_req())
 		{
 			MYLOG("BLUES", "Send request failed");
 			return false;
@@ -303,8 +300,8 @@ void blues_hub_status(void)
 	bool request_success = false;
 	for (int try_send = 0; try_send < 3; try_send++)
 	{
-		blues_start_req((char *)"hub.status");
-		if (blues_send_req())
+		rak_blues.start_req((char *)"hub.status");
+		if (rak_blues.send_req())
 		{
 			request_success = true;
 			break;
@@ -325,12 +322,12 @@ bool blues_switch_gnss_mode(bool continuous_on)
 		// Enable motion trigger
 		for (int try_send = 0; try_send < 3; try_send++)
 		{
-			if (blues_start_req((char *)"card.location.mode"))
+			if (rak_blues.start_req((char *)"card.location.mode"))
 			{
 				// GNSS mode off
-				blues_add_string_entry((char *)"mode", (char *)"off");
+				rak_blues.add_string_entry((char *)"mode", (char *)"off");
 			}
-			if (blues_send_req())
+			if (rak_blues.send_req())
 			{
 				request_success = true;
 				break;
@@ -347,25 +344,25 @@ bool blues_switch_gnss_mode(bool continuous_on)
 	MYLOG("BLUES", "Set location mode %s", continuous_on ? "continuous" : "periodic");
 	for (int try_send = 0; try_send < 3; try_send++)
 	{
-		if (blues_start_req((char *)"card.location.mode"))
+		if (rak_blues.start_req((char *)"card.location.mode"))
 		{
 			if (continuous_on)
 			{
 				gnss_continuous = true;
 				// Continous GNSS mode
-				blues_add_string_entry((char *)"mode", (char *)"continuous");
-				blues_add_integer_entry((char *)"threshold", 0);
+				rak_blues.add_string_entry((char *)"mode", (char *)"continuous");
+				rak_blues.add_int32_entry((char *)"threshold", 0);
 			}
 			else
 			{
 				gnss_continuous = false;
 				// Periodic GNSS mode
-				blues_add_string_entry((char *)"mode", (char *)"periodic");
-				blues_add_integer_entry((char *)"threshold", 0);
+				rak_blues.add_string_entry((char *)"mode", (char *)"periodic");
+				rak_blues.add_int32_entry((char *)"threshold", 0);
 			}
 			// Set location acquisition time to the sensor read time
-			blues_add_integer_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time / 1000 / 2));
-			if (blues_send_req())
+			rak_blues.add_int32_entry((char *)"seconds", (g_lorawan_settings.send_repeat_time / 1000 / 2));
+			if (rak_blues.send_req())
 			{
 				request_success = true;
 				break;
@@ -394,63 +391,86 @@ bool blues_get_location(void)
 	bool result = false;
 	bool got_gnss_location = false;
 	bool request_success = false;
+	char str_value[128];
+	uint32_t last_gnss_update = (uint32_t)millis();
+	uint32_t current_card_time = last_gnss_update;
+	bool got_gnss_time = false;
+	bool got_card_time = false;
 
 	for (int try_send = 0; try_send < 3; try_send++)
 	{
-		blues_start_req((char *)"card.location");
-		if (blues_send_req())
+		rak_blues.start_req((char *)"card.location");
+		if (rak_blues.send_req())
 		{
 			// Check if the location is confirmed or an old location
-			if (note_resp.containsKey("status"))
+			if (rak_blues.has_entry((char *)"status"))
 			{
-				String gnss_status = note_resp["status"];
-				MYLOG("BLUES", "gnss_status >>%s<<", gnss_status.c_str());
-				if (gnss_status.indexOf("search") > 0)
+				if (rak_blues.get_string_entry((char *)"status", str_value, 128))
 				{
-					MYLOG("BLUES", "GNSS is searching!");
-					old_location = 6;
-				}
-				// if (gnss_status.indexOf("inactive") > 0)
-				// {
-				// 	MYLOG("BLUES", "GNSS is inactive!");
-				// 	old_location++;
-				// }
-				if (gnss_status.indexOf("updated") > 0)
-				{
-					MYLOG("BLUES", "GNSS is updated!");
-					old_location = 0;
+					String gnss_status = String(str_value);
+					MYLOG("BLUES", "gnss_status >>%s<<", gnss_status.c_str());
+					if (gnss_status.indexOf("search") > 0)
+					{
+						MYLOG("BLUES", "GNSS is searching!");
+						old_location = 6;
+					}
+					// if (gnss_status.indexOf("inactive") > 0)
+					// {
+					// 	MYLOG("BLUES", "GNSS is inactive!");
+					// 	old_location++;
+					// }
+					if (gnss_status.indexOf("updated") > 0)
+					{
+						MYLOG("BLUES", "GNSS is updated!");
+						old_location = 0;
+					}
 				}
 			}
-			if (note_resp.containsKey("lat") && note_resp.containsKey("lon"))
+			if (rak_blues.has_entry((char *)"lat") && rak_blues.has_entry((char *)"lon"))
 			{
-				float blues_latitude = note_resp["lat"];
-				float blues_longitude = note_resp["lon"];
+				float blues_latitude;
+				float blues_longitude;
 				float blues_altitude = 0;
-				got_gnss_location = true;
-
-				if ((blues_latitude == 0.0) && (blues_longitude == 0.0))
+				if (rak_blues.get_float_entry((char *)"lat", blues_latitude))
 				{
-					MYLOG("BLUES", "No valid GPS data, report no location");
-				}
-				else
-				{
-					if (old_location <= 5)
+					if (rak_blues.get_float_entry((char *)"lon", blues_longitude))
 					{
+						got_gnss_location = true;
 
-						MYLOG("BLUES", "Got location Lat %.6f Long %0.6f", blues_latitude, blues_longitude);
-						g_solution_data.addGNSS_6(LPP_CHANNEL_GPS, (uint32_t)(blues_latitude * 10000000), (uint32_t)(blues_longitude * 10000000), blues_altitude);
-						g_solution_data.addPresence(LPP_CHANNEL_GPS_TOWER, false);
-						// if (gnss_continuous)
-						// {
-						// 	// We got a location, switch to periodic mode
-						// 	blues_switch_gnss_mode(false);
-						// }
+						if ((blues_latitude == 0.0) && (blues_longitude == 0.0))
+						{
+							MYLOG("BLUES", "No valid GPS data, report no location");
+						}
+						else
+						{
+							if (old_location <= 5)
+							{
+
+								MYLOG("BLUES", "Got location Lat %.6f Long %0.6f", blues_latitude, blues_longitude);
+								g_solution_data.addGNSS_6(LPP_CHANNEL_GPS, (int32_t)(blues_latitude * 10000000), (int32_t)(blues_longitude * 10000000), (int32_t)blues_altitude);
+								g_solution_data.addPresence(LPP_CHANNEL_GPS_TOWER, false);
+								// if (gnss_continuous)
+								// {
+								// 	// We got a location, switch to periodic mode
+								// 	blues_switch_gnss_mode(false);
+								// }
+							}
+							else
+							{
+								MYLOG("BLUES", "Got location, but it was not updated");
+							}
+							result = true;
+						}
+
+						if (rak_blues.has_entry((char *)"time"))
+						{
+							if (rak_blues.get_uint32_entry((char *)"time", last_gnss_update))
+							{
+								MYLOG("BLUES", "Last GNSS update was %ld", last_gnss_update);
+								got_gnss_time = true;
+							}
+						}
 					}
-					else
-					{
-						MYLOG("BLUES", "Got location, but it was not updated");
-					}
-					result = true;
 				}
 			}
 
@@ -480,83 +500,104 @@ bool blues_get_location(void)
 
 	for (int try_send = 0; try_send < 3; try_send++)
 	{
-		blues_start_req((char *)"card.time");
-		if (blues_send_req())
+		rak_blues.start_req((char *)"card.time");
+		if (rak_blues.send_req())
 		{
-			if (note_resp.containsKey("lat") && note_resp.containsKey("lon"))
+			if (rak_blues.has_entry((char *)"lat") && rak_blues.has_entry((char *)"lon"))
 			{
-				if (note_resp.containsKey("country"))
+				if (rak_blues.has_entry((char *)"country"))
 				{
-					char *country = (char *)note_resp["country"].as<const char *>();
+					rak_blues.get_string_entry((char *)"country", str_value, 20);
 					// Try to set LoRaWAN band automatically
-					if (strcmp(country, "PH") == 0)
+					if (strcmp(str_value, "PH") == 0)
 					{
+						MYLOG("BLUES", "Found PH");
 						if (g_lorawan_settings.lora_region != 10)
 						{
-							MYLOG("BLUES", "Found PH, switch to band 10");
+							MYLOG("BLUES", "Switch to band 10");
 							g_lorawan_settings.lora_region = 10;
 							init_lorawan(true);
 						}
 					}
-					else if (strcmp(country, "JP") == 0)
+					else if (strcmp(str_value, "JP") == 0)
 					{
+						MYLOG("BLUES", "Found JP");
 						if (g_lorawan_settings.lora_region != 8)
 						{
-							MYLOG("BLUES", "Found JP, switch to band 8");
+							MYLOG("BLUES", "Switch to band 8");
 							g_lorawan_settings.lora_region = 8;
 							init_lorawan(true);
 						}
 					}
-					else if (strcmp(country, "US") == 0)
+					else if (strcmp(str_value, "US") == 0)
 					{
+						MYLOG("BLUES", "Found US");
 						if (g_lorawan_settings.lora_region != 5)
 						{
-							MYLOG("BLUES", "Found US, switch to band 5");
+							MYLOG("BLUES", "Switch to band 5");
 							g_lorawan_settings.lora_region = 5;
 							init_lorawan(true);
 						}
 					}
-					else if (strcmp(country, "AU") == 0)
+					else if (strcmp(str_value, "AU") == 0)
 					{
+						MYLOG("BLUES", "Found AU");
 						if (g_lorawan_settings.lora_region != 6)
 						{
-							MYLOG("BLUES", "Found AU, switch to band 6");
+							MYLOG("BLUES", "Switch to band 6");
 							g_lorawan_settings.lora_region = 6;
 							init_lorawan(true);
 						}
 					}
-					else if ((strcmp(country, "DE") == 0) ||
-							 (strcmp(country, "FR") == 0) ||
-							 (strcmp(country, "IT") == 0) ||
-							 (strcmp(country, "NL") == 0) ||
-							 (strcmp(country, "GB") == 0))
+					else if ((strcmp(str_value, "DE") == 0) ||
+							 (strcmp(str_value, "FR") == 0) ||
+							 (strcmp(str_value, "IT") == 0) ||
+							 (strcmp(str_value, "NL") == 0) ||
+							 (strcmp(str_value, "GB") == 0))
 					{
+						MYLOG("BLUES", "Found Europe");
 						if (g_lorawan_settings.lora_region != 4)
 						{
-							MYLOG("BLUES", "Found Europe, switch to band 4");
+							MYLOG("BLUES", "Switch to band 4");
 							g_lorawan_settings.lora_region = 4;
 							init_lorawan(true);
 						}
 					}
 				}
 
+				float blues_latitude;
+				float blues_longitude;
+				float blues_altitude = 0;
+
 				// If no location from GNSS use the tower location
 				if (!got_gnss_location)
 				{
-					float blues_latitude = note_resp["lat"];
-					float blues_longitude = note_resp["lon"];
-					float blues_altitude = 0;
+					if (rak_blues.get_float_entry((char *)"lat", blues_latitude))
+					{
+						if (rak_blues.get_float_entry((char *)"lon", blues_longitude))
+						{
 
-					if ((blues_latitude == 0.0) && (blues_longitude == 0.0))
-					{
-						MYLOG("BLUES", "No valid GPS data, report no location");
+							if ((blues_latitude == 0.0) && (blues_longitude == 0.0))
+							{
+								MYLOG("BLUES", "No valid GPS data, report no location");
+							}
+							else
+							{
+								MYLOG("BLUES", "Got tower location Lat %.6f Long %0.6f", blues_latitude, blues_longitude);
+								g_solution_data.addGNSS_6(LPP_CHANNEL_GPS, (int32_t)(blues_latitude * 10000000), (int32_t)(blues_longitude * 10000000), (int32_t)blues_altitude);
+								g_solution_data.addPresence(LPP_CHANNEL_GPS_TOWER, true);
+								result = true;
+							}
+						}
 					}
-					else
+				}
+
+				if (rak_blues.has_entry((char *)"time"))
+				{
+					if (rak_blues.get_uint32_entry((char *)"time", current_card_time))
 					{
-						MYLOG("BLUES", "Got tower location Lat %.6f Long %0.6f", blues_latitude, blues_longitude);
-						g_solution_data.addGNSS_6(LPP_CHANNEL_GPS, (uint32_t)(blues_latitude * 10000000), (uint32_t)(blues_longitude * 10000000), blues_altitude);
-						g_solution_data.addPresence(LPP_CHANNEL_GPS_TOWER, true);
-						result = true;
+						MYLOG("BLUES", "Last card time was %ld", current_card_time);
+						got_card_time = true;
 					}
 				}
 			}
@@ -569,35 +610,40 @@ bool blues_get_location(void)
 		MYLOG("BLUES", "card.time request failed");
 	}
 
+	// Check the age of the GNSS location
+	if (got_card_time && got_gnss_time)
 	// if (got_gnss_location)
-	// {
-	// 	request_success = false;
-	// 	MYLOG("BLUES", "card.location.mode delete last location");
-	// 	// Clear last GPS location
-	// 	for (int try_send = 0; try_send < 3; try_send++)
-	// 	{
-	// 		blues_start_req((char *)"card.location.mode");
-	// 		blues_add_bool_entry((char *)"delete", true);
-	// 		if (blues_send_req())
-	// 		{
-	// 			request_success = true;
-	// 			break;
-	// 		}
-	// 	}
-	// 	if (!request_success)
-	// 	{
-	// 		MYLOG("BLUES", "card.location.mode delete last location request failed");
-	// 	}
-	// }
+	{
+		if ((current_card_time - last_gnss_update) > (g_lorawan_settings.send_repeat_time / 1000 / 2))
+		{
+			request_success = false;
+			MYLOG("BLUES", "Last GNSS location is older than acquisition time (%ld), delete old location", (current_card_time - last_gnss_update));
+			// Clear last GPS location
+			for (int try_send = 0; try_send < 3; try_send++)
+			{
+				rak_blues.start_req((char *)"card.location.mode");
+				rak_blues.add_bool_entry((char *)"delete", true);
+				if (rak_blues.send_req())
+				{
+					request_success = true;
+					break;
+				}
+			}
+			if (!request_success)
+			{
+				MYLOG("BLUES", "card.location.mode delete last location request failed");
+			}
+		}
+	}
 	return result;
 }
 
 void blues_card_restore(void)
 {
-	blues_start_req((char *)"hub.status");
-	blues_add_bool_entry((char *)"delete", true);
-	blues_add_bool_entry((char *)"connected", true);
-	blues_send_req();
+	rak_blues.start_req((char *)"hub.status");
+	rak_blues.add_bool_entry((char *)"delete", true);
+	rak_blues.add_bool_entry((char *)"connected", true);
+	rak_blues.send_req();
 }
 
 /**
@@ -610,10 +656,10 @@ void blues_card_restore(void)
 bool blues_enable_attn(void)
 {
 	MYLOG("BLUES", "Enable ATTN on motion");
-	if (blues_start_req((char *)"card.attn"))
+	if (rak_blues.start_req((char *)"card.attn"))
 	{
-		blues_add_string_entry((char *)"mode", (char *)"motion");
-		if (!blues_send_req())
+		rak_blues.add_string_entry((char *)"mode", (char *)"motion");
+		if (!rak_blues.send_req())
 		{
 			MYLOG("BLUES", "card.attn request failed");
 			return false;
@@ -626,10 +672,10 @@ bool blues_enable_attn(void)
 	attachInterrupt(WB_IO5, blues_attn_cb, RISING);
 
 	MYLOG("BLUES", "Arm ATTN on motion");
-	if (blues_start_req((char *)"card.attn"))
+	if (rak_blues.start_req((char *)"card.attn"))
 	{
-		blues_add_string_entry((char *)"mode", (char *)"arm");
-		if (!blues_send_req())
+		rak_blues.add_string_entry((char *)"mode", (char *)"arm");
+		if (!rak_blues.send_req())
 		{
 			MYLOG("BLUES", "card.attn request failed");
 			return false;
@@ -653,10 +699,10 @@ bool blues_disable_attn(void)
 	MYLOG("BLUES", "Disable ATTN on motion");
 	detachInterrupt(WB_IO5);
 
-	if (blues_start_req((char *)"card.attn"))
+	if (rak_blues.start_req((char *)"card.attn"))
 	{
-		blues_add_string_entry((char *)"mode", (char *)"disarm");
-		if (!blues_send_req())
+		rak_blues.add_string_entry((char *)"mode", (char *)"disarm");
+		if (!rak_blues.send_req())
 		{
 			MYLOG("BLUES", "card.attn request failed");
 		}
@@ -665,10 +711,10 @@ bool blues_disable_attn(void)
 	{
 		MYLOG("BLUES", "Request creation failed");
 	}
-	if (blues_start_req((char *)"card.attn"))
+	if (rak_blues.start_req((char *)"card.attn"))
 	{
-		blues_add_string_entry((char *)"mode", (char *)"-motion");
-		if (!blues_send_req())
+		rak_blues.add_string_entry((char *)"mode", (char *)"-motion");
+		if (!rak_blues.send_req())
 		{
 			MYLOG("BLUES", "card.attn request failed");
 		}

@@ -90,9 +90,11 @@ struct s_blues_settings
 	bool motion_trigger = true;									 // Send data on motion trigger
 };
 
+#include <blues-minimal-i2c.h>
+
 bool init_blues(void);
-bool blues_start_req(char *request);
-bool blues_send_req(void);
+// bool start_req(char *request);
+// bool send_req(void);
 void blues_hub_status(void);
 bool blues_get_location(void);
 bool blues_enable_attn(void);
@@ -100,17 +102,17 @@ bool blues_disable_attn(void);
 bool blues_send_payload(uint8_t *data, uint16_t data_len);
 bool blues_switch_gnss_mode(bool continuous_on);
 void blues_card_restore(void);
-void blues_add_string_entry(char *type, char *value);
-void blues_add_bool_entry(char *type, bool value);
-void blues_add_integer_entry(char *type, int value);
-void blues_add_float_entry(char *type, float value);
-void blues_add_nested_string_entry(char *type, char *nested, char *value);
-void blues_add_nested_integer_entry(char *type, char *nested, int value);
-void blues_add_nested_bool_entry(char *type, char *nested, bool value);
-void blues_add_nested_float_entry(char *type, char *nested, float value);
+void blues_attn_cb(void);
+// void add_string_entry(char *type, char *value);
+// void add_bool_entry(char *type, bool value);
+// void add_int32_entry(char *type, int value);
+// void add_float_entry(char *type, float value);
+// void add_nested_string_entry(char *type, char *nested, char *value);
+// void add_nested_int32_entry(char *type, char *nested, int value);
+// void add_nested_bool_entry(char *type, char *nested, bool value);
+// void add_nested_float_entry(char *type, char *nested, float value);
+extern RAK_BLUES rak_blues;
 extern s_blues_settings g_blues_settings;
-extern char blues_response[];
-extern StaticJsonDocument<4096> note_out;
 
 // User AT commands
 void init_user_at(void);

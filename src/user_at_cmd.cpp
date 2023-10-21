@@ -23,6 +23,19 @@ File this_file(InternalFS);
 /** Structure for saved Blues Notecard settings */
 s_blues_settings g_blues_settings;
 
+#define REQ_PRINTF(...)                     \
+	do                                      \
+	{                                       \
+		PRINTF(__VA_ARGS__);                \
+		PRINTF("\n");                       \
+		Serial.flush();                     \
+		if (g_ble_uart_is_connected)        \
+		{                                   \
+			g_ble_uart.printf(__VA_ARGS__); \
+			g_ble_uart.printf("\n");        \
+		}                                   \
+	} while (0)
+
 /**
  * @brief Set Blues Product UID
  *
@@ -375,8 +388,19 @@ static int at_ble_on(void)
  */
 int at_blues_status(void)
 {
-	blues_hub_status();
-	snprintf(g_at_query_buf, ATQUERY_SIZE, "%s", blues_response);
+	if (!rak_blues.start_req((char *)"hub.status"))
+	{
+		snprintf(g_at_query_buf, ATQUERY_SIZE, "Request creation failed");
+		return AT_ERRNO_EXEC_FAIL;
+	}
+
+	if (!rak_blues.send_req(g_at_query_buf, ATQUERY_SIZE))
+	{
+		snprintf(g_at_query_buf, ATQUERY_SIZE, "Send request failed");
+		return AT_ERRNO_EXEC_FAIL;
+	}
+	// Print out response as AT response
+	REQ_PRINTF(">>>>\n%s\n<<<<", g_at_query_buf);
 	return AT_SUCCESS;
 }
 
@@ -448,19 +472,6 @@ void save_blues_settings(void)
 	MYLOG("USR_AT", "Saved Blues Settings");
 }
 
-#define REQ_PRINTF(...)                     \
-	do                                      \
-	{                                       \
-		PRINTF(__VA_ARGS__);                \
-		PRINTF("\n");                       \
-		Serial.flush();                     \
-		if (g_ble_uart_is_connected)        \
-		{                                   \
-			g_ble_uart.printf(__VA_ARGS__); \
-			g_ble_uart.printf("\n");        \
-		}                                   \
-	} while (0)
-
 int at_blues_req(char *str)
 {
 	for (int i = 0; str[i] != '\0'; i++)
@@ -469,19 +480,19 @@ int at_blues_req(char *str)
 			str[i] = str[i] + 32;			// converting uppercase to lowercase
 	}
 
-	if (!blues_start_req(str))
+	if (!rak_blues.start_req(str))
 	{
 		snprintf(g_at_query_buf, ATQUERY_SIZE, "Request creation failed");
 		return AT_ERRNO_EXEC_FAIL;
 	}
 
-	if (!blues_send_req())
+	if (!rak_blues.send_req(g_at_query_buf, ATQUERY_SIZE))
 	{
 		snprintf(g_at_query_buf, ATQUERY_SIZE, "Send request failed");
 		return AT_ERRNO_EXEC_FAIL;
 	}
 	// Print out response as AT response
-	REQ_PRINTF(">>>>\n%s\n<<<<", blues_response);
+	REQ_PRINTF(">>>>\n%s\n<<<<", g_at_query_buf);
 	return AT_SUCCESS;
 }
 
